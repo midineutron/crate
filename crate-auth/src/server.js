@@ -2,7 +2,7 @@
 //
 // Endpoints (see .claude/swarm/contract.md):
 //   GET  /auth/callback?code=...  exchange code -> verify JWT -> set session -> 302 /
-//   GET  /auth/verify             forwardAuth target: 200 if session else 502 + decoy
+//   GET  /auth/verify             forwardAuth target: 200 if session else 401 + decoy
 //   POST /auth/konami             validate sequence -> set session -> 200
 //   GET  /auth/logout             clear cookie -> 302 /
 //   GET  /health                  200 (bypasses forwardAuth)
@@ -41,7 +41,11 @@ function redirect(res, location, extraHeaders = {}) {
 
 function sendDecoy(res) {
   const body = decoyHtml({ konamiSequence: config.konamiSequence });
-  res.writeHead(502, {
+  // Status 401 (not 502): Cloudflare replaces origin 5xx bodies with its own
+  // branded error page, which would hide the decoy. 4xx is passed through
+  // verbatim. Traefik forwardAuth still denies on any non-2xx, so the gate
+  // holds. The body is still visually styled as a 502 Bad Gateway.
+  res.writeHead(401, {
     'Content-Type': 'text/html; charset=utf-8',
     'Content-Length': Buffer.byteLength(body),
     'Cache-Control': 'no-store',
@@ -115,7 +119,7 @@ function handleVerify(req, res) {
     res.end('ok');
     return;
   }
-  // No / invalid session -> decoy 502 (Traefik relays this body+status).
+  // No / invalid session -> decoy (401; Traefik relays this body+status).
   return sendDecoy(res);
 }
 

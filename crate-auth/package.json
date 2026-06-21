@@ -1,0 +1,15 @@
+{
+  "name": "crate-auth",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Mycelium OAuth front door + self-signed session minter for Crate",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

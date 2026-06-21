@@ -37,9 +37,6 @@ export const elements = {
   konamiProgress: null,
   artworkContainer: null,
   artworkImage: null,
-  passwordContainer: null,
-  passwordInput: null,
-  passwordError: null,
   titleLogo: null,
   playerTitle: null,
   infoModal: null,
@@ -49,8 +46,6 @@ export const elements = {
   imageModalImg: null,
   imageModalClose: null,
   resetBtn: null,
-  passwordResetBtn: null,
-  voiceBtn: null,
   fullResetBtn: null,
   shareBtn: null,
   favBtn: null,
@@ -105,9 +100,6 @@ export function initElements() {
   elements.konamiProgress = document.getElementById('konami-progress');
   elements.artworkContainer = document.getElementById('artwork-container');
   elements.artworkImage = document.getElementById('artwork-image');
-  elements.passwordContainer = document.getElementById('password-container');
-  elements.passwordInput = document.getElementById('password-input');
-  elements.passwordError = document.getElementById('password-error');
   elements.titleLogo = document.getElementById('title-logo');
   elements.playerTitle = document.querySelector('.player-title');
   elements.infoModal = document.getElementById('info-modal');
@@ -117,8 +109,6 @@ export function initElements() {
   elements.imageModalImg = document.getElementById('image-modal-img');
   elements.imageModalClose = document.getElementById('image-modal-close');
   elements.resetBtn = document.getElementById('reset-btn');
-  elements.passwordResetBtn = document.getElementById('password-reset-btn');
-  elements.voiceBtn = document.getElementById('voice-btn');
   elements.fullResetBtn = document.getElementById('full-reset-btn');
   elements.shareBtn = document.getElementById('share-btn');
   elements.favBtn = document.getElementById('fav-btn');

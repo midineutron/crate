@@ -57,8 +57,6 @@ export const state = {
   artworkLongPressTriggered: false,
   // Deep link
   pendingTrackPath: null,
-  // Password/Konami flow
-  passwordShowing: false,
   // Session history for back/forward
   playHistory: [],
   historyIndex: -1,

@@ -8,7 +8,6 @@ import { state, isSecretMode, REPEAT_MODES } from './state.js';
 import { elements } from './elements.js';
 import { formatTime, getMediaUrl } from './utils.js';
 import { trackEvent } from './analytics.js';
-import { setSignedCookies, clearAllCookies } from './cookies.js';
 import { loadHeardTracks, loadFavoriteTracks, saveFavoriteTracks, setSecretUnlocked } from './storage.js';
 import { setTrackInHash } from './hash.js';
 import { showScreen, showError, showAuthError, updateMiniPlayer, updateModeBasedUI } from './ui.js';
@@ -401,7 +400,7 @@ export async function downloadTrack(track, method = 'button') {
     })
     .catch(e => {
       console.error('Download error:', e);
-      alert('Download failed. Make sure you have valid cookies.');
+      alert('Download failed. Please try again.');
     });
 }
 
@@ -562,7 +561,6 @@ export function handleProgressClick(e) {
  */
 export function resetApp() {
   trackEvent('app_reset');
-  clearAllCookies();
   setSecretUnlocked(false);
   // Preserve heard tracks - don't clear STORAGE_KEY
   // Preserve hash for deep links
@@ -578,7 +576,6 @@ export async function fullResetApp() {
     return;
   }
   trackEvent('full_reset');
-  clearAllCookies();
   setSecretUnlocked(false);
   try {
     localStorage.removeItem(CONFIG.STORAGE_KEY);
@@ -604,8 +601,7 @@ export async function handleEnter() {
   // Unlock audio on user interaction (critical for mobile)
   await unlockAudio();
 
-  // Set cookies (ensures fresh cookies after reset)
-  setSignedCookies();
+  // Auth is handled upstream by the proxy; just start the player.
   startPlayer();
 }
 

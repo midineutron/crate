@@ -1,6 +1,6 @@
 /**
  * Crate Music Player
- * Self-hosted streaming PWA with signed cookie authentication
+ * Self-hosted streaming PWA (auth handled upstream by the proxy)
  *
  * @module main
  */

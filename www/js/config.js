@@ -14,13 +14,8 @@ const prefix = SITE.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
 export const CONFIG = {
   STORAGE_KEY: `${prefix}_heard_tracks`,
   FAVORITES_KEY: `${prefix}_favorite_tracks`,
-  SECRET_KEY: `${prefix}_secret_unlocked`,
-  COOKIE_NAMES: ['CloudFront-Policy', 'CloudFront-Signature', 'CloudFront-Key-Pair-Id'],
-  PASSWORD: SITE.password
+  SECRET_KEY: `${prefix}_secret_unlocked`
 };
-
-// COOKIES_PLACEHOLDER - replaced by deploy-cookies.py
-export const SIGNED_COOKIES = null;
 
 export const MODES = {
   REGULAR: 'regular',

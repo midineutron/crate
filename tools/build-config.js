@@ -12,7 +12,7 @@
 const fs = require('fs');
 const path = require('path');
 const matter = require('gray-matter');
-const { marked } = require('marked');
+// marked v17 is ESM-only; loaded via dynamic import() in the async section below.
 
 const ROOT = path.resolve(__dirname, '..');
 const SITE_MD = path.join(ROOT, 'site.md');
@@ -70,6 +70,8 @@ fs.writeFileSync(siteConfigPath, siteConfigJs);
 console.log('Generated dist/js/site.config.js from site.md frontmatter');
 
 // --- Render markdown and inject into index.html ---
+(async () => {
+const { marked } = await import('marked');
 const htmlContent = marked(markdownBody.trim());
 
 // Build the info modal body content
@@ -146,3 +148,4 @@ indexHtml = indexHtml.replace(
 
 fs.writeFileSync(indexPath, indexHtml);
 console.log('Updated dist/index.html with site name and content');
+})();

@@ -185,10 +185,34 @@ Edit the `modal-body` section in `www/index.html` to tell your story.
 
 ## Security Model
 
-- Tracks bucket has **zero** public access
-- CloudFront OAC is the only path to audio files
-- Signed cookies required for `/audio/*`, `/artwork/*`, and `/manifest.json`
-- No public catalog = track list is not crawlable
+The app assumes auth is enforced **upstream by the proxy** — it ships no
+in-app password. The two deployment paths enforce that differently.
+
+### k3s + mycelium
+
+- Gating is **network-only**: Traefik forwardAuth calls crate-auth
+  `/auth/verify` on every request; only a valid HMAC `crate_session` cookie
+  returns 200.
+- Entry is via mycelium OAuth2 proof-of-tap: a tag scan → `/auth/callback?code=`
+  → crate-auth exchanges the code, validates the JWT against mycelium's JWKS
+  (cached), then mints the session cookie. The JWT is validated once at callback;
+  per-request checks only verify the HMAC session.
+- No/invalid session → crate-auth returns a **decoy 502** page (relayed by
+  Traefik), so the app shell and catalog never leak to unauthenticated clients.
+- The decoy page carries a konami-code backdoor that mints the same session — an
+  intentional, accepted-tradeoff operator bypass. Rotate `SESSION_HMAC_KEY` to
+  invalidate all sessions.
+- Catalog is served from a **read-only** NFS mount, only behind the gate, so the
+  track list is not crawlable. (The PWA offline cache on already-authed devices
+  is intentional.)
+
+### AWS / CloudFront (parallel path)
+
+- Tracks bucket has **zero** public access; CloudFront OAC is the only path to
+  audio files.
+- CloudFront signed cookies are required for `/audio/*`, `/artwork/*`, and
+  `/manifest.json`.
+- No public catalog = track list is not crawlable.
 
 ## License
 

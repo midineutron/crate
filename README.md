@@ -21,7 +21,7 @@ Crate has two independent deployment paths — pick one:
 
 - Streaming audio player with queue, search, favorites, and progress tracking
 - PWA with offline support — smart caching with 500MB audio cache
-- Signed cookie auth via CloudFront (private catalog, no public manifest)
+- Upstream-enforced auth (CloudFront signed cookies on AWS, or mycelium OAuth2 proof-of-tap on k3s) — the app assumes the proxy gates access
 - Media Session API (lock screen controls, notification artwork)
 - Deep linking to individual tracks
 - Pull-to-save gesture for downloads
@@ -110,10 +110,10 @@ npm run deploy:cookies
 ## Project Structure
 
 ```
-www/
+www/                 # The PWA (built to dist/ by `npm run build`)
   js/
-    site.config.js   # YOUR config — edit this
-    config.js         # Derives settings from site.config.js
+    site.config.js    # Generated from site.md (or edit directly)
+    config.js         # App constants derived from site.config.js
     audio.js          # Audio element, media session, iOS PWA
     player.js         # Playback engine, queue, history
     tracks.js         # Track selection, filtering, random
@@ -121,21 +121,33 @@ www/
     storage.js        # LocalStorage (heard tracks, favorites)
     ui.js             # Screen management, mini player
     events.js         # Event handlers, initialization
-    cookies.js        # CloudFront signed cookie management
     analytics.js      # GA4 wrapper
     pwa.js            # Service worker registration
-    konami.js         # Easter egg system
-    voice.js          # Voice recognition auth
+    konami.js         # Cosmetic easter egg (cash rain + in-app secret mode)
+    cache.js          # Offline audio cache
   sw.js              # Service worker (caching strategies)
   main.css           # Styles (CSS custom properties for theming)
   index.html         # Single page app shell
   app.webmanifest    # PWA manifest
 
+# --- k3s + mycelium path ---
+crate-web/           # Dockerfile + nginx.conf: build SPA, serve dist/ + NFS catalog
+crate-auth/          # Node mycelium OAuth front door + session minter (see its README)
+deploy/
+  README.md          # k3s + mycelium deployment guide
+  k8s/               # kustomize manifests (web, auth, NFS PV/PVC, Traefik, cert-manager)
+.github/workflows/   # CI: build + push both images to ghcr.io
+
+# --- AWS / CloudFront path (parallel option) ---
 terraform/           # AWS infrastructure (S3, CloudFront, Route53)
+
 tools/
-  deploy.sh          # Site deployment script
-  deploy-cookies.py  # Cookie signing and deployment
-  obfuscate.js       # JS build/obfuscation
+  obfuscate.js       # Build: www/ -> dist/ (obfuscate JS, copy assets)
+  build-config.js    # Build: site.md -> site.config.js + inject index.html
+  register-mycelium.sh # Register OAuth client + tag mapping with mycelium
+  deploy.sh          # AWS: site deployment script
+  deploy-cookies.py  # AWS: cookie signing and deployment
+  sign-cookies.py    # AWS: CloudFront signed-cookie generation
   generate-icons.js  # PWA icon generation from SVG
   upload.py          # Track upload to S3
   extract_metadata.py # ID3 tag extraction

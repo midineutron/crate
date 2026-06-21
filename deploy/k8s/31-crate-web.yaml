@@ -1,0 +1,78 @@
+# crate-web: nginx serving the built SPA + the read-only NFS catalog (:8080).
+# Uses nginxinc/nginx-unprivileged (runs as uid 101). rootfs is left writable
+# because nginx needs /tmp and /var/cache/nginx; everything else is locked down.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crate-web
+  namespace: crate
+  labels:
+    app: crate-web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: crate-web
+  template:
+    metadata:
+      labels:
+        app: crate-web
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101           # nginx user in nginx-unprivileged
+        runAsGroup: 101
+      containers:
+        - name: crate-web
+          image: ghcr.io/midineutron/crate:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          volumeMounts:
+            - name: catalog
+              mountPath: /catalog
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: catalog
+          persistentVolumeClaim:
+            claimName: crate-catalog-pvc
+            readOnly: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: crate-web
+  namespace: crate
+  labels:
+    app: crate-web
+spec:
+  selector:
+    app: crate-web
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

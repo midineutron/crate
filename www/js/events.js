@@ -8,7 +8,6 @@ import { SITE } from './site.config.js';
 import { state, isSecretMode } from './state.js';
 import { elements, initElements } from './elements.js';
 import { getSecretUnlocked, setSecretUnlocked } from './storage.js';
-import { clearAllCookies } from './cookies.js';
 import { trackEvent } from './analytics.js';
 import { getTrackPathFromHash } from './hash.js';
 import { checkVersion } from './version.js';
@@ -25,7 +24,6 @@ import {
   handleTouchEnd,
   setStartPlayerFn
 } from './konami.js';
-import { startVoiceRecognition, setVoiceCallbacks } from './voice.js';
 import {
   playTrack,
   playPreviousTrack,
@@ -53,10 +51,6 @@ import { initPWA, setOfflineChangeCallback } from './pwa.js';
 
 // Set up cross-module function references
 setStartPlayerFn(startPlayer);
-setVoiceCallbacks({
-  startPlayer,
-  hidePasswordPrompt: () => {} // No-op, password prompt removed
-});
 setAudioHandlers({
   handleNext,
   playPreviousTrack
@@ -144,13 +138,6 @@ function handleKeydown(e) {
   if (e.code === 'Slash' && isSecretMode()) {
     e.preventDefault();
     elements.trackSearch.focus();
-  }
-
-  // P to clear cookies and reset (for testing)
-  if (e.code === 'KeyP' && e.shiftKey) {
-    e.preventDefault();
-    clearAllCookies();
-    window.location.reload();
   }
 }
 
@@ -614,22 +601,10 @@ export function init() {
     elements.trackSearch.addEventListener('input', handleSearch);
   }
 
-  // Voice password button
-  if (elements.voiceBtn) {
-    elements.voiceBtn.addEventListener('click', startVoiceRecognition);
-  }
-
   // Reset buttons
   if (elements.resetBtn) {
     elements.resetBtn.addEventListener('click', resetApp);
     elements.resetBtn.addEventListener('touchend', (e) => {
-      e.preventDefault();
-      resetApp();
-    });
-  }
-  if (elements.passwordResetBtn) {
-    elements.passwordResetBtn.addEventListener('click', resetApp);
-    elements.passwordResetBtn.addEventListener('touchend', (e) => {
       e.preventDefault();
       resetApp();
     });

@@ -7,7 +7,6 @@ import { KONAMI_SEQUENCE, SWIPE_THRESHOLD, MODES } from './config.js';
 import { state } from './state.js';
 import { elements } from './elements.js';
 import { setSecretUnlocked } from './storage.js';
-import { setSignedCookies } from './cookies.js';
 import { trackEvent } from './analytics.js';
 import { updateModeBasedUI } from './ui.js';
 
@@ -199,7 +198,6 @@ export function handleKonamiInput(direction) {
       setSecretUnlocked(true);
       trackEvent('secret_unlock', { method: 'konami' });
       flashKonamiSuccess();
-      setSignedCookies();
       fireKonamiReward();
       // Update UI immediately for mode change
       updateModeBasedUI();
@@ -243,7 +241,6 @@ function unlockSecretDesktop() {
   state.waitingForBA = false;
   state.mode = MODES.SECRET;
   setSecretUnlocked(true);
-  setSignedCookies();
   fireKonamiReward();
   // Update UI immediately for mode change
   updateModeBasedUI();
@@ -261,7 +258,6 @@ function unlockSecretMobile() {
   state.waitingForBA = false;
   state.mode = MODES.SECRET;
   setSecretUnlocked(true);
-  setSignedCookies();
   fireKonamiReward();
   // Update UI immediately for mode change
   updateModeBasedUI();

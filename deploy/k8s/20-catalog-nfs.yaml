@@ -1,0 +1,50 @@
+# NFS-backed catalog storage (Synology NAS export), mounted read-only into
+# crate-web at /catalog. The catalog (manifest.json, audio/, artwork/) is NEVER
+# baked into the image — it lives here.
+#
+# PLACEHOLDERS:
+#   __NAS_IP__           Synology NAS IP, e.g. 192.168.1.10
+#   __NAS_EXPORT_PATH__  NFS export path, e.g. /volume1/crate
+#
+# Expected layout under the export path:
+#   <export>/manifest.json
+#   <export>/audio/*.mp3
+#   <export>/artwork/*
+#
+# Ensure the NAS NFS share grants read access to the k3s node IPs.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: crate-catalog-pv
+  labels:
+    app.kubernetes.io/part-of: crate
+spec:
+  capacity:
+    storage: 500Gi          # nominal; NFS is not size-enforced
+  accessModes:
+    - ReadOnlyMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""      # static binding; no dynamic provisioner
+  mountOptions:
+    - ro
+    - nfsvers=4.1
+    - hard
+    - nointr
+  nfs:
+    server: __NAS_IP__
+    path: __NAS_EXPORT_PATH__
+    readOnly: true
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: crate-catalog-pvc
+  namespace: crate
+spec:
+  accessModes:
+    - ReadOnlyMany
+  resources:
+    requests:
+      storage: 500Gi
+  storageClassName: ""
+  volumeName: crate-catalog-pv

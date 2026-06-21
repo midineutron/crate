@@ -1,0 +1,79 @@
+# Traefik routing: forwardAuth gate + same-origin split between crate-auth and
+# crate-web, plus HTTP->HTTPS redirect.
+#
+# PLACEHOLDER:
+#   __HOSTNAME__  the public host (must match the Certificate dnsNames)
+#
+# API group note: recent Traefik (k3s >= ~v1.26) uses traefik.io/v1alpha1.
+# Older Traefik used traefik.containo.us/v1alpha1 — swap the apiVersion if your
+# cluster predates the rename.
+
+# forwardAuth: Traefik calls crate-auth /auth/verify on every crate-web request.
+# On a non-2xx response, Traefik relays crate-auth's status + body to the client
+# (this is how the decoy 502 page reaches unauthenticated visitors).
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: crate-forward-auth
+  namespace: crate
+spec:
+  forwardAuth:
+    address: http://crate-auth.crate.svc.cluster.local:9090/auth/verify
+---
+# HTTP -> HTTPS redirect.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: crate-redirect-https
+  namespace: crate
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true
+---
+# HTTPS: /auth/* and /health -> crate-auth (bypass forwardAuth); all else ->
+# crate-web behind the forwardAuth gate. The auth route has higher priority so
+# it wins for those paths.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: crate-websecure
+  namespace: crate
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`__HOSTNAME__`) && (PathPrefix(`/auth/`) || Path(`/health`))
+      priority: 20
+      services:
+        - name: crate-auth
+          port: 9090
+    - kind: Rule
+      match: Host(`__HOSTNAME__`)
+      priority: 10
+      middlewares:
+        - name: crate-forward-auth
+      services:
+        - name: crate-web
+          port: 8080
+  tls:
+    secretName: crate-tls
+---
+# HTTP entrypoint: redirect everything to HTTPS.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: crate-web-redirect
+  namespace: crate
+spec:
+  entryPoints:
+    - web
+  routes:
+    - kind: Rule
+      match: Host(`__HOSTNAME__`)
+      middlewares:
+        - name: crate-redirect-https
+      services:
+        - name: crate-web
+          port: 8080

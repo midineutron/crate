@@ -6,13 +6,22 @@
 
 <p align="center">Your crate is yours. Own it, share it. It's just music.</p>
 
-A self-hosted music streaming PWA with AWS infrastructure. Drop in your catalog, configure your branding, deploy, and stream.
+A self-hosted music streaming PWA. Drop in your catalog, configure your branding, deploy, and stream.
+
+## Deployment options
+
+Crate has two independent deployment paths — pick one:
+
+- **k3s + mycelium** (self-hosted, OAuth proof-of-tap entry, NFS catalog) —
+  see [`deploy/README.md`](deploy/README.md).
+- **AWS / CloudFront / Terraform** (signed-cookie auth, S3 catalog) — the
+  original path, documented in the Quickstart below and under `terraform/`.
 
 ## Features
 
 - Streaming audio player with queue, search, favorites, and progress tracking
 - PWA with offline support — smart caching with 500MB audio cache
-- Signed cookie auth via CloudFront (private catalog, no public manifest)
+- Upstream-enforced auth (CloudFront signed cookies on AWS, or mycelium OAuth2 proof-of-tap on k3s) — the app assumes the proxy gates access
 - Media Session API (lock screen controls, notification artwork)
 - Deep linking to individual tracks
 - Pull-to-save gesture for downloads
@@ -101,10 +110,10 @@ npm run deploy:cookies
 ## Project Structure
 
 ```
-www/
+www/                 # The PWA (built to dist/ by `npm run build`)
   js/
-    site.config.js   # YOUR config — edit this
-    config.js         # Derives settings from site.config.js
+    site.config.js    # Generated from site.md (or edit directly)
+    config.js         # App constants derived from site.config.js
     audio.js          # Audio element, media session, iOS PWA
     player.js         # Playback engine, queue, history
     tracks.js         # Track selection, filtering, random
@@ -112,21 +121,33 @@ www/
     storage.js        # LocalStorage (heard tracks, favorites)
     ui.js             # Screen management, mini player
     events.js         # Event handlers, initialization
-    cookies.js        # CloudFront signed cookie management
     analytics.js      # GA4 wrapper
     pwa.js            # Service worker registration
-    konami.js         # Easter egg system
-    voice.js          # Voice recognition auth
+    konami.js         # Cosmetic easter egg (cash rain + in-app secret mode)
+    cache.js          # Offline audio cache
   sw.js              # Service worker (caching strategies)
   main.css           # Styles (CSS custom properties for theming)
   index.html         # Single page app shell
   app.webmanifest    # PWA manifest
 
+# --- k3s + mycelium path ---
+crate-web/           # Dockerfile + nginx.conf: build SPA, serve dist/ + NFS catalog
+crate-auth/          # Node mycelium OAuth front door + session minter (see its README)
+deploy/
+  README.md          # k3s + mycelium deployment guide
+  k8s/               # kustomize manifests (web, auth, NFS PV/PVC, Traefik, cert-manager)
+.github/workflows/   # CI: build + push both images to ghcr.io
+
+# --- AWS / CloudFront path (parallel option) ---
 terraform/           # AWS infrastructure (S3, CloudFront, Route53)
+
 tools/
-  deploy.sh          # Site deployment script
-  deploy-cookies.py  # Cookie signing and deployment
-  obfuscate.js       # JS build/obfuscation
+  obfuscate.js       # Build: www/ -> dist/ (obfuscate JS, copy assets)
+  build-config.js    # Build: site.md -> site.config.js + inject index.html
+  register-mycelium.sh # Register OAuth client + tag mapping with mycelium
+  deploy.sh          # AWS: site deployment script
+  deploy-cookies.py  # AWS: cookie signing and deployment
+  sign-cookies.py    # AWS: CloudFront signed-cookie generation
   generate-icons.js  # PWA icon generation from SVG
   upload.py          # Track upload to S3
   extract_metadata.py # ID3 tag extraction
@@ -164,10 +185,34 @@ Edit the `modal-body` section in `www/index.html` to tell your story.
 
 ## Security Model
 
-- Tracks bucket has **zero** public access
-- CloudFront OAC is the only path to audio files
-- Signed cookies required for `/audio/*`, `/artwork/*`, and `/manifest.json`
-- No public catalog = track list is not crawlable
+The app assumes auth is enforced **upstream by the proxy** — it ships no
+in-app password. The two deployment paths enforce that differently.
+
+### k3s + mycelium
+
+- Gating is **network-only**: Traefik forwardAuth calls crate-auth
+  `/auth/verify` on every request; only a valid HMAC `crate_session` cookie
+  returns 200.
+- Entry is via mycelium OAuth2 proof-of-tap: a tag scan → `/auth/callback?code=`
+  → crate-auth exchanges the code, validates the JWT against mycelium's JWKS
+  (cached), then mints the session cookie. The JWT is validated once at callback;
+  per-request checks only verify the HMAC session.
+- No/invalid session → crate-auth returns a **decoy 502** page (relayed by
+  Traefik), so the app shell and catalog never leak to unauthenticated clients.
+- The decoy page carries a konami-code backdoor that mints the same session — an
+  intentional, accepted-tradeoff operator bypass. Rotate `SESSION_HMAC_KEY` to
+  invalidate all sessions.
+- Catalog is served from a **read-only** NFS mount, only behind the gate, so the
+  track list is not crawlable. (The PWA offline cache on already-authed devices
+  is intentional.)
+
+### AWS / CloudFront (parallel path)
+
+- Tracks bucket has **zero** public access; CloudFront OAC is the only path to
+  audio files.
+- CloudFront signed cookies are required for `/audio/*`, `/artwork/*`, and
+  `/manifest.json`.
+- No public catalog = track list is not crawlable.
 
 ## License
 

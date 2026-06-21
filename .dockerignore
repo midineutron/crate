@@ -1,0 +1,14 @@
+# Keep the crate-web build context small and deterministic.
+.git
+.gitignore
+.worktrees
+.claude
+node_modules
+dist
+crate-auth
+terraform
+tools/.venv
+**/*.log
+*.md
+!site.md
+crate_logo*.png

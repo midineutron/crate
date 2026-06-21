@@ -4,11 +4,12 @@ kind: Kustomization
 # The crate-auth Secret is intentionally NOT listed here — create it from
 # 11-secret.example.yaml (with real values) BEFORE `kubectl apply -k`, so the
 # placeholder secret is never applied. See README.md.
+#
+# No cert-manager: TLS is terminated at the Cloudflare edge (tunnel topology).
 resources:
   - 00-namespace.yaml
   - 10-config.yaml
   - 20-catalog-nfs.yaml
   - 30-crate-auth.yaml
   - 31-crate-web.yaml
-  - 40-cert-manager.yaml
   - 50-traefik.yaml

@@ -1,8 +1,18 @@
 # Traefik routing: forwardAuth gate + same-origin split between crate-auth and
-# crate-web, plus HTTP->HTTPS redirect.
+# crate-web.
 #
-# PLACEHOLDER:
-#   __HOSTNAME__  the public host (must match the Certificate dnsNames)
+# TOPOLOGY: this cluster fronts Crate with a Cloudflare Tunnel. Cloudflare
+# terminates TLS at its edge for music.mycelium-network.io, and cloudflared
+# forwards plain HTTP in-cluster to Traefik's `web` entrypoint. So there is NO
+# TLS / cert-manager here and NO HTTP->HTTPS redirect (a redirect would loop
+# behind the tunnel). REDIRECT_URI / APP_ORIGIN stay https:// because that is
+# what the browser sees at the Cloudflare edge.
+#
+# cloudflared tunnel ingress rule (add to your existing in-cluster tunnel):
+#   - hostname: music.mycelium-network.io
+#     service: http://traefik.kube-system.svc.cluster.local:80
+# Also add a Cloudflare "Cache Rule: Bypass cache" for this hostname so the edge
+# does not cache .mp3/artwork (which would bypass the forwardAuth gate).
 #
 # API group note: recent Traefik (k3s >= ~v1.26) uses traefik.io/v1alpha1.
 # Older Traefik used traefik.containo.us/v1alpha1 — swap the apiVersion if your
@@ -20,60 +30,30 @@ spec:
   forwardAuth:
     address: http://crate-auth.crate.svc.cluster.local:9090/auth/verify
 ---
-# HTTP -> HTTPS redirect.
-apiVersion: traefik.io/v1alpha1
-kind: Middleware
-metadata:
-  name: crate-redirect-https
-  namespace: crate
-spec:
-  redirectScheme:
-    scheme: https
-    permanent: true
----
-# HTTPS: /auth/* and /health -> crate-auth (bypass forwardAuth); all else ->
-# crate-web behind the forwardAuth gate. The auth route has higher priority so
-# it wins for those paths.
+# HTTP entrypoint (behind the Cloudflare Tunnel):
+#   /auth/* and /health -> crate-auth (bypass forwardAuth)
+#   everything else      -> crate-web behind the forwardAuth gate
+# The auth route has higher priority so it wins for those paths.
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
-  name: crate-websecure
-  namespace: crate
-spec:
-  entryPoints:
-    - websecure
-  routes:
-    - kind: Rule
-      match: Host(`__HOSTNAME__`) && (PathPrefix(`/auth/`) || Path(`/health`))
-      priority: 20
-      services:
-        - name: crate-auth
-          port: 9090
-    - kind: Rule
-      match: Host(`__HOSTNAME__`)
-      priority: 10
-      middlewares:
-        - name: crate-forward-auth
-      services:
-        - name: crate-web
-          port: 8080
-  tls:
-    secretName: crate-tls
----
-# HTTP entrypoint: redirect everything to HTTPS.
-apiVersion: traefik.io/v1alpha1
-kind: IngressRoute
-metadata:
-  name: crate-web-redirect
+  name: crate-web
   namespace: crate
 spec:
   entryPoints:
     - web
   routes:
     - kind: Rule
-      match: Host(`__HOSTNAME__`)
+      match: Host(`music.mycelium-network.io`) && (PathPrefix(`/auth/`) || Path(`/health`))
+      priority: 20
+      services:
+        - name: crate-auth
+          port: 9090
+    - kind: Rule
+      match: Host(`music.mycelium-network.io`)
+      priority: 10
       middlewares:
-        - name: crate-redirect-https
+        - name: crate-forward-auth
       services:
         - name: crate-web
           port: 8080

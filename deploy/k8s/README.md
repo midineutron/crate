@@ -2,40 +2,59 @@
 
 Deploys Crate behind mycelium OAuth on k3s: `crate-web` (nginx SPA + NFS
 catalog) and `crate-auth` (mycelium OAuth front door + session minter), gated by
-Traefik forwardAuth, with TLS from cert-manager.
+Traefik forwardAuth. **TLS is terminated at the Cloudflare edge via a Cloudflare
+Tunnel** — there is no cert-manager in this deployment.
+
+## Topology (Cloudflare Tunnel)
+
+```
+browser --HTTPS--> Cloudflare edge --tunnel--> cloudflared --HTTP--> Traefik (web) --> crate-web / crate-auth
+        (CF-managed cert for music.mycelium-network.io)        (in-cluster, plain http)
+```
+
+Add this rule to your existing in-cluster cloudflared tunnel config:
+
+```yaml
+- hostname: music.mycelium-network.io
+  service: http://traefik.kube-system.svc.cluster.local:80
+```
+
+Then, in the Cloudflare dashboard, add a **Cache Rule: Bypass cache** for
+`music.mycelium-network.io` (or at least `/audio/*`, `/artwork/*`,
+`/manifest.json`). Otherwise Cloudflare caches `.mp3`/artwork by extension,
+ignoring cookies, which would serve media past the forwardAuth gate.
 
 ## Prerequisites
 
-- k3s with its default **Traefik** ingress and the `web`/`websecure` entrypoints
-- **cert-manager** installed
-- **mycelium** already running in-cluster (reachable via service DNS)
+- k3s with its default **Traefik** ingress (`web` entrypoint, :80)
+- An in-cluster **cloudflared** tunnel for `music.mycelium-network.io`
+- **mycelium** already running in-cluster (service `backend.mycelium`, :8080)
 - A **Synology NAS** NFS export holding the catalog
-- Public **DNS** A/AAAA record for your host pointing at the cluster
-- Images published: `ghcr.io/midineutron/crate` and `ghcr.io/midineutron/crate-auth`
+- Images published (public): `ghcr.io/midineutron/crate` and `ghcr.io/midineutron/crate-auth`
 
 ## Placeholders to replace
 
-Search-and-replace these across the manifests before applying:
+Host and mycelium URLs are already filled in (`music.mycelium-network.io`,
+`backend.mycelium.svc.cluster.local:8080`). Only the NAS values remain:
 
 | Placeholder | Meaning | Example |
 |-------------|---------|---------|
-| `__HOSTNAME__` | Public host fronting Crate | `crate.example.com` |
 | `__NAS_IP__` | Synology NAS IP | `192.168.1.10` |
 | `__NAS_EXPORT_PATH__` | NFS export path | `/volume1/crate` |
-| `__MYCELIUM_NS__` | Namespace mycelium runs in | `mycelium` |
-| `__JWT_ISSUER__` | Expected `iss` from mycelium (blank = skip check) | `https://mycelium.example` |
-| `__ACME_EMAIL__` | Let's Encrypt contact email | `you@example.com` |
 
 ```sh
-# Example bulk substitution (review the diff afterward):
 cd deploy/k8s
-grep -rl '__HOSTNAME__' . | xargs sed -i '' 's/__HOSTNAME__/crate.example.com/g'
-# ...repeat per placeholder (use `sed -i` without '' on GNU/Linux)
+sed -i 's#__NAS_IP__#192.168.1.10#; s#__NAS_EXPORT_PATH__#/volume1/crate#' 20-catalog-nfs.yaml
+# (macOS: sed -i '' ...)
 ```
+
+To tighten issuer checking later, set `JWT_ISSUER` in `10-config.yaml` to the
+`iss` mycelium mints (its `JWT_ISSUER` env; default `mycelium`). Blank = skip
+the iss check (audience is still checked against `OAUTH_CLIENT_ID`).
 
 ## Catalog (NFS) layout
 
-The NAS export (`__NAS_EXPORT_PATH__`) must contain:
+The NAS export must contain:
 
 ```
 manifest.json
@@ -43,9 +62,10 @@ audio/*.mp3
 artwork/*
 ```
 
-It is mounted **read-only** into crate-web at `/catalog`. nginx serves
+Mounted **read-only** into crate-web at `/catalog`. nginx serves
 `/manifest.json`, `/audio/`, `/artwork/` from there (range requests enabled for
-audio seeking). The catalog is never baked into the image.
+audio seeking). The catalog is never baked into the image. Ensure the NFS export
+grants read access to all three k3s node IPs (lenovo1, lenovo2, dell1).
 
 ## Create the secret
 
@@ -73,8 +93,7 @@ kubectl apply -k deploy/k8s
 (`kustomization.yaml` applies everything except the secret.) Watch rollout:
 
 ```sh
-kubectl -n crate get pods,svc,ingressroute,certificate
-kubectl -n crate describe certificate crate-tls   # TLS issuance status
+kubectl -n crate get pods,svc,ingressroute
 ```
 
 ## How routing works

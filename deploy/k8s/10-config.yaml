@@ -1,22 +1,21 @@
 # Non-secret crate-auth configuration.
 #
-# PLACEHOLDERS to fill in before applying:
-#   __HOSTNAME__     the public host that fronts Crate (real DNS), e.g. crate.example.com
-#   __MYCELIUM_NS__  the namespace mycelium runs in (in-cluster service DNS)
-#   __JWT_ISSUER__   the expected `iss` claim minted by mycelium (leave blank to skip iss check)
-#
-# NOTE: the mycelium service name/port below ("mycelium", :8080) are the
-# documented defaults — confirm against your mycelium Service.
+# Filled in for this deployment:
+#   host          music.mycelium-network.io  (fronted by Cloudflare Tunnel)
+#   mycelium      service "backend" in namespace "mycelium", port 8080
+#   JWT_ISSUER    left blank -> iss is not checked (audience is still checked
+#                 against OAUTH_CLIENT_ID). To tighten, set this to the `iss`
+#                 mycelium mints (its JWT_ISSUER env; default "mycelium").
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: crate-auth-config
   namespace: crate
 data:
-  MYCELIUM_TOKEN_URL: "http://mycelium.__MYCELIUM_NS__.svc.cluster.local:8080/oauth/token"
-  MYCELIUM_JWKS_URL: "http://mycelium.__MYCELIUM_NS__.svc.cluster.local:8080/.well-known/jwks.json"
-  REDIRECT_URI: "https://__HOSTNAME__/auth/callback"
-  APP_ORIGIN: "https://__HOSTNAME__"
-  JWT_ISSUER: "__JWT_ISSUER__"
+  MYCELIUM_TOKEN_URL: "http://backend.mycelium.svc.cluster.local:8080/oauth/token"
+  MYCELIUM_JWKS_URL: "http://backend.mycelium.svc.cluster.local:8080/.well-known/jwks.json"
+  REDIRECT_URI: "https://music.mycelium-network.io/auth/callback"
+  APP_ORIGIN: "https://music.mycelium-network.io"
+  JWT_ISSUER: ""
   SESSION_TTL_DAYS: "30"
   KONAMI_SEQUENCE: "up,up,down,down,left,right,left,right,b,a"

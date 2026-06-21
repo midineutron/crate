@@ -1,0 +1,74 @@
+# crate-auth: mycelium OAuth front door + self-signed session minter (:9090).
+# Stateless; in-memory JWKS cache only. Runs non-root with a read-only rootfs.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crate-auth
+  namespace: crate
+  labels:
+    app: crate-auth
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: crate-auth
+  template:
+    metadata:
+      labels:
+        app: crate-auth
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000          # `node` user in node:20-slim
+        runAsGroup: 1000
+      containers:
+        - name: crate-auth
+          image: ghcr.io/rmzi/crate-auth:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 9090
+          envFrom:
+            - configMapRef:
+                name: crate-auth-config
+            - secretRef:
+                name: crate-auth-secrets
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 9090
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 9090
+            initialDelaySeconds: 5
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: crate-auth
+  namespace: crate
+  labels:
+    app: crate-auth
+spec:
+  selector:
+    app: crate-auth
+  ports:
+    - name: http
+      port: 9090
+      targetPort: 9090

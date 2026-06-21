@@ -1,0 +1,88 @@
+name: Build and push images
+
+# Builds both container images and pushes them to GitHub Container Registry
+# (ghcr.io) on every push to main or the k3s feature branch.
+#
+#   ghcr.io/rmzi/crate       <- crate-web  (context: repo root, crate-web/Dockerfile)
+#   ghcr.io/rmzi/crate-auth  <- crate-auth (context: crate-auth/, crate-auth/Dockerfile)
+#
+# Tags produced per build:
+#   - sha-<short-sha>   always (immutable, what manifests should pin in CI/CD)
+#   - <branch-name>     always (e.g. feat-k3s-mycelium-oauth, for branch testing)
+#   - latest            only on the default branch (main)
+#
+# ---------------------------------------------------------------------------
+# ONE-TIME: make the packages public
+# ---------------------------------------------------------------------------
+# GHCR packages are created PRIVATE on first push. The k3s manifests pull with
+# no imagePullSecret (public images), so after the first successful run flip
+# each package to public once:
+#   GitHub -> your profile/org -> Packages -> crate / crate-auth
+#     -> Package settings -> Danger Zone -> Change visibility -> Public
+# Or via CLI (run once, after the package exists):
+#   gh api -X PATCH /user/packages/container/crate         -f visibility=public
+#   gh api -X PATCH /user/packages/container/crate-auth    -f visibility=public
+
+on:
+  push:
+    branches:
+      - main
+      - feat/k3s-mycelium-oauth
+  workflow_dispatch:
+
+# Avoid stacking redundant builds on rapid pushes to the same ref.
+concurrency:
+  group: build-images-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: crate
+            context: .
+            dockerfile: crate-web/Dockerfile
+          - image: crate-auth
+            context: crate-auth
+            dockerfile: crate-auth/Dockerfile
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute image metadata (tags + labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
+          tags: |
+            type=sha,prefix=sha-
+            type=ref,event=branch
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}

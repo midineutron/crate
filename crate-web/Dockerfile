@@ -24,6 +24,12 @@ COPY www ./www
 COPY site.md ./site.md
 RUN npm run build
 
+# Generate dist/version.txt from APP_VERSION. The SPA's version.js fetches
+# /version.txt and reloads when it differs from APP_VERSION. Without this file,
+# nginx's SPA fallback returns index.html for /version.txt, which never matches
+# the version string and sends the app into an infinite reload loop.
+RUN node -e "const fs=require('fs');const s=fs.readFileSync('www/js/config.js','utf8');const m=s.match(/APP_VERSION\s*=\s*'([^']+)'/);if(!m){throw new Error('APP_VERSION not found in www/js/config.js')}fs.writeFileSync('dist/version.txt', m[1] + '\n');console.log('wrote dist/version.txt =', m[1])"
+
 # ---- Stage 2: serve with nginx (non-root, listens on :8080) ----
 FROM nginxinc/nginx-unprivileged:1.27-alpine AS runtime
 

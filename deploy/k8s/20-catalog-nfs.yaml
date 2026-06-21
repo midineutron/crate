@@ -3,7 +3,7 @@
 # baked into the image — it lives here.
 #
 # PLACEHOLDERS:
-#   __NAS_IP__           Synology NAS IP, e.g. 192.168.1.10
+#   100.102.27.127           Synology NAS IP, e.g. 192.168.1.10
 #   __NAS_EXPORT_PATH__  NFS export path, e.g. /volume1/crate
 #
 # Expected layout under the export path:
@@ -31,7 +31,7 @@ spec:
     - hard
     - nointr
   nfs:
-    server: __NAS_IP__
+    server: 100.102.27.127
     path: __NAS_EXPORT_PATH__
     readOnly: true
 ---

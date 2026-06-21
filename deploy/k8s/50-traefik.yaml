@@ -2,14 +2,14 @@
 # crate-web.
 #
 # TOPOLOGY: this cluster fronts Crate with a Cloudflare Tunnel. Cloudflare
-# terminates TLS at its edge for music.mycelium-network.io, and cloudflared
+# terminates TLS at its edge for crates.mycelium-network.io, and cloudflared
 # forwards plain HTTP in-cluster to Traefik's `web` entrypoint. So there is NO
 # TLS / cert-manager here and NO HTTP->HTTPS redirect (a redirect would loop
 # behind the tunnel). REDIRECT_URI / APP_ORIGIN stay https:// because that is
 # what the browser sees at the Cloudflare edge.
 #
 # cloudflared tunnel ingress rule (add to your existing in-cluster tunnel):
-#   - hostname: music.mycelium-network.io
+#   - hostname: crates.mycelium-network.io
 #     service: http://traefik.kube-system.svc.cluster.local:80
 # Also add a Cloudflare "Cache Rule: Bypass cache" for this hostname so the edge
 # does not cache .mp3/artwork (which would bypass the forwardAuth gate).
@@ -44,13 +44,13 @@ spec:
     - web
   routes:
     - kind: Rule
-      match: Host(`music.mycelium-network.io`) && (PathPrefix(`/auth/`) || Path(`/health`))
+      match: Host(`crates.mycelium-network.io`) && (PathPrefix(`/auth/`) || Path(`/health`))
       priority: 20
       services:
         - name: crate-auth
           port: 9090
     - kind: Rule
-      match: Host(`music.mycelium-network.io`)
+      match: Host(`crates.mycelium-network.io`)
       priority: 10
       middlewares:
         - name: crate-forward-auth

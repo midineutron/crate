@@ -4,7 +4,7 @@
 #
 # PLACEHOLDERS:
 #   100.102.27.127           Synology NAS IP, e.g. 192.168.1.10
-#   __NAS_EXPORT_PATH__  NFS export path, e.g. /volume1/crate
+#   /volume1/crates  NFS export path, e.g. /volume1/crate
 #
 # Expected layout under the export path:
 #   <export>/manifest.json
@@ -32,7 +32,7 @@ spec:
     - nointr
   nfs:
     server: 100.102.27.127
-    path: __NAS_EXPORT_PATH__
+    path: /volume1/crates
     readOnly: true
 ---
 apiVersion: v1

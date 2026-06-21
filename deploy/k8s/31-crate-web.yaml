@@ -25,7 +25,7 @@ spec:
       containers:
         - name: crate-web
           image: ghcr.io/midineutron/crate:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - name: http
               containerPort: 8080

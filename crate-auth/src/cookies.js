@@ -1,5 +1,20 @@
 // Cookie helpers.
 
+/**
+ * Decode a cookie value, tolerating malformed percent-encoding.
+ * Other apps on a shared parent domain (e.g. Authelia/mycelium on
+ * .mycelium-network.io) may set cookie values that are not valid
+ * URI-encodings; decodeURIComponent throws on those. We must never let an
+ * unrelated cookie crash forwardAuth, so fall back to the raw value.
+ */
+function safeDecode(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
 /** Parse a Cookie header into a {name: value} map. */
 export function parseCookies(header) {
   const out = {};
@@ -9,7 +24,7 @@ export function parseCookies(header) {
     if (idx < 0) continue;
     const name = part.slice(0, idx).trim();
     const value = part.slice(idx + 1).trim();
-    if (name) out[name] = decodeURIComponent(value);
+    if (name) out[name] = safeDecode(value);
   }
   return out;
 }

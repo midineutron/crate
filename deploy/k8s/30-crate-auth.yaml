@@ -24,7 +24,7 @@ spec:
       containers:
         - name: crate-auth
           image: ghcr.io/midineutron/crate-auth:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - name: http
               containerPort: 9090

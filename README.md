@@ -6,7 +6,16 @@
 
 <p align="center">Your crate is yours. Own it, share it. It's just music.</p>
 
-A self-hosted music streaming PWA with AWS infrastructure. Drop in your catalog, configure your branding, deploy, and stream.
+A self-hosted music streaming PWA. Drop in your catalog, configure your branding, deploy, and stream.
+
+## Deployment options
+
+Crate has two independent deployment paths — pick one:
+
+- **k3s + mycelium** (self-hosted, OAuth proof-of-tap entry, NFS catalog) —
+  see [`deploy/README.md`](deploy/README.md).
+- **AWS / CloudFront / Terraform** (signed-cookie auth, S3 catalog) — the
+  original path, documented in the Quickstart below and under `terraform/`.
 
 ## Features
 

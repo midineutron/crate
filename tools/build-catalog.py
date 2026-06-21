@@ -16,6 +16,12 @@ duration) comes from embedded tags, falling back to the filename.
 Copy the output into the Crate NFS share (e.g. /volume1/crates) and the app will
 pick it up immediately (manifest.json is served no-cache).
 
+ADDING MORE MUSIC LATER:
+    Treat your source folder as the source of truth. Add files to it, then re-run
+    this against the WHOLE folder with the SAME --output. Already-copied audio is
+    skipped (matched by content hash), rsync only ships new files, and
+    manifest.json is regenerated to cover everything. It is fully incremental.
+
 Usage:
     python3 tools/build-catalog.py "/path/to/music" --output ./catalog-out
     rsync -av ./catalog-out/ user@nas:/volume1/crates/
@@ -97,15 +103,15 @@ def extract_artwork(audio, dest_no_ext: Path):
     return None
 
 
-def read_tags(path: Path) -> dict:
-    """Extract display metadata; fall back to the filename."""
+def read_tags(path: Path):
+    """Extract display metadata; fall back to the filename. Returns (meta, audio)."""
     meta = {'title': None, 'artist': None, 'album': None,
             'year': None, 'duration': None, 'track_num': None}
     audio = None
     try:
         audio = MutagenFile(path)
     except Exception as e:
-        print(f"  warn: could not read {path.name}: {e}", file=sys.stderr)
+        print(f"  warn: could not read tags for {path.name}: {e}", file=sys.stderr)
 
     if audio is not None:
         info = getattr(audio, 'info', None)
@@ -162,6 +168,25 @@ def read_tags(path: Path) -> dict:
     return meta, audio
 
 
+def process_one(path: Path, audio_dir: Path, art_dir: Path) -> dict:
+    """Hash, copy, tag, and extract art for a single file. Returns a track dict."""
+    tid = file_id(path)
+    ext = path.suffix.lower()
+    dest_audio = audio_dir / f"{tid}{ext}"
+    if not dest_audio.exists():
+        shutil.copy2(path, dest_audio)
+    meta, audio = read_tags(path)
+    track = {'id': tid, 'path': f"audio/{tid}{ext}"}
+    if audio is not None:
+        art = extract_artwork(audio, art_dir / tid)
+        if art is not None:
+            track['artwork'] = f"artwork/{art.name}"
+    for k in ('title', 'artist', 'album', 'year', 'duration', 'track_num'):
+        if meta.get(k) is not None:
+            track[k] = meta[k]
+    return track
+
+
 def main():
     ap = argparse.ArgumentParser(description='Build a Crate catalog from a music folder (no S3).')
     ap.add_argument('source', help='Folder to scan recursively for audio files')
@@ -186,39 +211,53 @@ def main():
 
     tracks = []
     seen = set()
+    errors = []
     for path in files:
-        tid = file_id(path)
+        try:
+            tid = file_id(path)
+        except OSError as e:
+            # Common with cloud-on-demand files (Synology Drive / iCloud) that are
+            # not materialized locally -> "Stale NFS file handle" / I/O error.
+            errors.append((path, e))
+            print(f"  !! skipped (cannot read file): {path}  [{e}]", file=sys.stderr)
+            continue
+
         if tid in seen:
             print(f"  skip duplicate: {path.name}")
             continue
         seen.add(tid)
 
-        ext = path.suffix.lower()
-        dest_audio = audio_dir / f"{tid}{ext}"
-        if not dest_audio.exists():
-            shutil.copy2(path, dest_audio)
+        try:
+            track = process_one(path, audio_dir, art_dir)
+        except OSError as e:
+            errors.append((path, e))
+            print(f"  !! skipped (read error): {path}  [{e}]", file=sys.stderr)
+            continue
+        except Exception as e:
+            errors.append((path, e))
+            print(f"  !! skipped (error): {path}  [{e}]", file=sys.stderr)
+            continue
 
-        meta, audio = read_tags(path)
-
-        track = {'id': tid, 'path': f"audio/{tid}{ext}"}
-        if audio is not None:
-            art = extract_artwork(audio, art_dir / tid)
-            if art is not None:
-                track['artwork'] = f"artwork/{art.name}"
-        for k in ('title', 'artist', 'album', 'year', 'duration', 'track_num'):
-            if meta.get(k) is not None:
-                track[k] = meta[k]
         tracks.append(track)
-        print(f"  + {meta['title']}  ({tid}{ext})")
+        print(f"  + {track.get('title')}  ({track['path']})")
 
     manifest = {
         'generated': datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
         'tracks': tracks,
     }
     (out / 'manifest.json').write_text(json.dumps(manifest, indent=2))
+
     print(f"\nWrote {out/'manifest.json'} with {len(tracks)} track(s)")
     print(f"Audio:   {audio_dir}")
     print(f"Artwork: {art_dir}")
+    if errors:
+        print(f"\n{len(errors)} file(s) skipped (could not read). If these are "
+              f"Synology Drive on-demand files, make the folder available offline "
+              f"(pin/download) and re-run — already-built tracks are kept:")
+        for p, e in errors[:20]:
+            print(f"  - {p}")
+        if len(errors) > 20:
+            print(f"  ... and {len(errors) - 20} more")
     print("\nNext: copy the output into your NFS share, e.g.")
     print(f"  rsync -av {out}/ user@nas:/volume1/crates/")
 

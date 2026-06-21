@@ -126,6 +126,7 @@ def transcode_to_mp3(src: Path, dest: Path, quality: str):
         '-q:a', str(quality),
         '-map_metadata', '0',              # carry source tags into the mp3
         '-id3v2_version', '3',
+        '-f', 'mp3',                       # force muxer: temp name ends in .partial
         str(tmp),
     ]
     try:

@@ -13,20 +13,27 @@ spaces / odd characters in source filenames never end up in URLs, and re-running
 is idempotent (same file -> same id). Display metadata (title/artist/album/year/
 duration) comes from embedded tags, falling back to the filename.
 
+With --transcode, non-MP3 sources (e.g. WAV/FLAC/M4A) are converted to MP3 via
+ffmpeg on the way into audio/ (much smaller, faster to stream, correct
+content-type). The id still derives from the ORIGINAL file, so re-runs stay
+idempotent.
+
 Copy the output into the Crate NFS share (e.g. /volume1/crates) and the app will
 pick it up immediately (manifest.json is served no-cache).
 
 ADDING MORE MUSIC LATER:
     Treat your source folder as the source of truth. Add files to it, then re-run
-    this against the WHOLE folder with the SAME --output. Already-copied audio is
+    this against the WHOLE folder with the SAME --output. Already-built audio is
     skipped (matched by content hash), rsync only ships new files, and
     manifest.json is regenerated to cover everything. It is fully incremental.
 
 Usage:
     python3 tools/build-catalog.py "/path/to/music" --output ./catalog-out
+    python3 tools/build-catalog.py "/path/to/music" --transcode        # WAV/etc -> MP3
     rsync -av ./catalog-out/ user@nas:/volume1/crates/
 
 Requires: mutagen  (pip install -r tools/requirements.txt)
+          ffmpeg   (only for --transcode; e.g. `brew install ffmpeg`)
 """
 
 import argparse
@@ -35,6 +42,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -103,6 +111,33 @@ def extract_artwork(audio, dest_no_ext: Path):
     return None
 
 
+def transcode_to_mp3(src: Path, dest: Path, quality: str):
+    """Convert src to MP3 at dest using ffmpeg (VBR -q:a <quality>, 0=best..9=worst).
+
+    Writes to a temp file and renames on success so a failed/interrupted run
+    never leaves a half-written mp3 that a later run would treat as complete.
+    """
+    tmp = dest.with_name(dest.name + '.partial')
+    cmd = [
+        'ffmpeg', '-y', '-loglevel', 'error',
+        '-i', str(src),
+        '-vn',                              # drop any embedded image stream
+        '-codec:a', 'libmp3lame',
+        '-q:a', str(quality),
+        '-map_metadata', '0',              # carry source tags into the mp3
+        '-id3v2_version', '3',
+        str(tmp),
+    ]
+    try:
+        subprocess.run(cmd, check=True, capture_output=True)
+    except subprocess.CalledProcessError as e:
+        if tmp.exists():
+            tmp.unlink()
+        stderr = (e.stderr or b'').decode('utf-8', 'ignore').strip()
+        raise RuntimeError(f"ffmpeg failed: {stderr[-300:]}")
+    os.replace(tmp, dest)
+
+
 def read_tags(path: Path):
     """Extract display metadata; fall back to the filename. Returns (meta, audio)."""
     meta = {'title': None, 'artist': None, 'album': None,
@@ -168,15 +203,25 @@ def read_tags(path: Path):
     return meta, audio
 
 
-def process_one(path: Path, audio_dir: Path, art_dir: Path) -> dict:
-    """Hash, copy, tag, and extract art for a single file. Returns a track dict."""
+def process_one(path: Path, audio_dir: Path, art_dir: Path,
+                transcode: bool, quality: str) -> dict:
+    """Hash, copy/transcode, tag, and extract art for a single file."""
     tid = file_id(path)
     ext = path.suffix.lower()
-    dest_audio = audio_dir / f"{tid}{ext}"
-    if not dest_audio.exists():
-        shutil.copy2(path, dest_audio)
+
+    if transcode and ext != '.mp3':
+        out_ext = '.mp3'
+        dest_audio = audio_dir / f"{tid}.mp3"
+        if not dest_audio.exists():
+            transcode_to_mp3(path, dest_audio, quality)
+    else:
+        out_ext = ext
+        dest_audio = audio_dir / f"{tid}{ext}"
+        if not dest_audio.exists():
+            shutil.copy2(path, dest_audio)
+
     meta, audio = read_tags(path)
-    track = {'id': tid, 'path': f"audio/{tid}{ext}"}
+    track = {'id': tid, 'path': f"audio/{tid}{out_ext}"}
     if audio is not None:
         art = extract_artwork(audio, art_dir / tid)
         if art is not None:
@@ -192,11 +237,20 @@ def main():
     ap.add_argument('source', help='Folder to scan recursively for audio files')
     ap.add_argument('--output', '-o', default='./catalog-out',
                     help='Output folder (default ./catalog-out)')
+    ap.add_argument('--transcode', action='store_true',
+                    help='Convert non-MP3 sources (WAV/FLAC/M4A/...) to MP3 via ffmpeg')
+    ap.add_argument('--mp3-quality', default='2',
+                    help='ffmpeg LAME VBR quality for --transcode (0=best..9=worst; default 2 ~190kbps)')
     args = ap.parse_args()
 
     source = Path(args.source).expanduser()
     if not source.is_dir():
         print(f"error: source is not a directory: {source}", file=sys.stderr)
+        sys.exit(1)
+
+    if args.transcode and not shutil.which('ffmpeg'):
+        print("error: --transcode needs ffmpeg on PATH. Install it, e.g. `brew install ffmpeg`.",
+              file=sys.stderr)
         sys.exit(1)
 
     out = Path(args.output).expanduser()
@@ -207,7 +261,8 @@ def main():
 
     files = sorted(p for p in source.rglob('*')
                    if p.is_file() and p.suffix.lower() in SUPPORTED_EXTENSIONS)
-    print(f"Scanning {len(files)} audio file(s) under {source}")
+    mode = "transcode->mp3" if args.transcode else "copy"
+    print(f"Scanning {len(files)} audio file(s) under {source}  (mode: {mode})")
 
     tracks = []
     seen = set()
@@ -228,7 +283,7 @@ def main():
         seen.add(tid)
 
         try:
-            track = process_one(path, audio_dir, art_dir)
+            track = process_one(path, audio_dir, art_dir, args.transcode, args.mp3_quality)
         except OSError as e:
             errors.append((path, e))
             print(f"  !! skipped (read error): {path}  [{e}]", file=sys.stderr)

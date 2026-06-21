@@ -9,32 +9,32 @@ Tunnel** — there is no cert-manager in this deployment.
 
 ```
 browser --HTTPS--> Cloudflare edge --tunnel--> cloudflared --HTTP--> Traefik (web) --> crate-web / crate-auth
-        (CF-managed cert for music.mycelium-network.io)        (in-cluster, plain http)
+        (CF-managed cert for crates.mycelium-network.io)        (in-cluster, plain http)
 ```
 
 Add this rule to your existing in-cluster cloudflared tunnel config:
 
 ```yaml
-- hostname: music.mycelium-network.io
+- hostname: crates.mycelium-network.io
   service: http://traefik.kube-system.svc.cluster.local:80
 ```
 
 Then, in the Cloudflare dashboard, add a **Cache Rule: Bypass cache** for
-`music.mycelium-network.io` (or at least `/audio/*`, `/artwork/*`,
+`crates.mycelium-network.io` (or at least `/audio/*`, `/artwork/*`,
 `/manifest.json`). Otherwise Cloudflare caches `.mp3`/artwork by extension,
 ignoring cookies, which would serve media past the forwardAuth gate.
 
 ## Prerequisites
 
 - k3s with its default **Traefik** ingress (`web` entrypoint, :80)
-- An in-cluster **cloudflared** tunnel for `music.mycelium-network.io`
+- An in-cluster **cloudflared** tunnel for `crates.mycelium-network.io`
 - **mycelium** already running in-cluster (service `backend.mycelium`, :8080)
 - A **Synology NAS** NFS export holding the catalog
 - Images published (public): `ghcr.io/midineutron/crate` and `ghcr.io/midineutron/crate-auth`
 
 ## Placeholders to replace
 
-Host and mycelium URLs are already filled in (`music.mycelium-network.io`,
+Host and mycelium URLs are already filled in (`crates.mycelium-network.io`,
 `backend.mycelium.svc.cluster.local:8080`). Only the NAS values remain:
 
 | Placeholder | Meaning | Example |

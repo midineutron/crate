@@ -55,7 +55,7 @@ NFS — never baked into an image.
 
 ## 1. Build and publish the images
 
-Two images: `ghcr.io/rmzi/crate` (web) and `ghcr.io/rmzi/crate-auth`.
+Two images: `ghcr.io/midineutron/crate` (web) and `ghcr.io/midineutron/crate-auth`.
 
 ### Via CI (recommended)
 
@@ -78,13 +78,13 @@ gh api -X PATCH /user/packages/container/crate-auth -f visibility=public
 
 ```sh
 # web (build context = repo root; runs npm run build inside)
-docker build -f crate-web/Dockerfile -t ghcr.io/rmzi/crate:dev .
+docker build -f crate-web/Dockerfile -t ghcr.io/midineutron/crate:dev .
 
 # auth (build context = crate-auth/)
-docker build -t ghcr.io/rmzi/crate-auth:dev crate-auth
+docker build -t ghcr.io/midineutron/crate-auth:dev crate-auth
 
-docker push ghcr.io/rmzi/crate:dev
-docker push ghcr.io/rmzi/crate-auth:dev
+docker push ghcr.io/midineutron/crate:dev
+docker push ghcr.io/midineutron/crate-auth:dev
 ```
 
 The manifests reference the `:latest` tag with `imagePullPolicy: IfNotPresent`.

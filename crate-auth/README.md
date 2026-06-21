@@ -58,5 +58,5 @@ IEEE-P1363 (R‖S), verified with Node's `dsaEncoding: 'ieee-p1363'`.
 ```sh
 node src/server.js     # or: npm start
 npm test               # node --test (session, konami, JWKS/JWT)
-docker build -t ghcr.io/rmzi/crate-auth .
+docker build -t ghcr.io/midineutron/crate-auth .
 ```

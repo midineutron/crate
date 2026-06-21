@@ -3,8 +3,8 @@ name: Build and push images
 # Builds both container images and pushes them to GitHub Container Registry
 # (ghcr.io) on every push to main or the k3s feature branch.
 #
-#   ghcr.io/rmzi/crate       <- crate-web  (context: repo root, crate-web/Dockerfile)
-#   ghcr.io/rmzi/crate-auth  <- crate-auth (context: crate-auth/, crate-auth/Dockerfile)
+#   ghcr.io/midineutron/crate       <- crate-web  (context: repo root, crate-web/Dockerfile)
+#   ghcr.io/midineutron/crate-auth  <- crate-auth (context: crate-auth/, crate-auth/Dockerfile)
 #
 # Tags produced per build:
 #   - sha-<short-sha>   always (immutable, what manifests should pin in CI/CD)

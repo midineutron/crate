@@ -24,7 +24,7 @@ spec:
         runAsGroup: 101
       containers:
         - name: crate-web
-          image: ghcr.io/rmzi/crate:latest
+          image: ghcr.io/midineutron/crate:latest
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

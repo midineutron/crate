@@ -2,7 +2,7 @@
 #
 # Build context is the REPOSITORY ROOT (the build needs package.json, tools/,
 # www/, site.md). Build with:
-#   docker build -f crate-web/Dockerfile -t ghcr.io/rmzi/crate .
+#   docker build -f crate-web/Dockerfile -t ghcr.io/midineutron/crate .
 #
 # Auth is handled upstream by Traefik forwardAuth -> crate-auth; this image is
 # a dumb static server. The catalog (manifest.json, audio/, artwork/) is NOT

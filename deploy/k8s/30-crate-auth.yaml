@@ -23,7 +23,7 @@ spec:
         runAsGroup: 1000
       containers:
         - name: crate-auth
-          image: ghcr.io/rmzi/crate-auth:latest
+          image: ghcr.io/midineutron/crate-auth:latest
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

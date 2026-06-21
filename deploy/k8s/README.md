@@ -11,7 +11,7 @@ Traefik forwardAuth, with TLS from cert-manager.
 - **mycelium** already running in-cluster (reachable via service DNS)
 - A **Synology NAS** NFS export holding the catalog
 - Public **DNS** A/AAAA record for your host pointing at the cluster
-- Images published: `ghcr.io/rmzi/crate` and `ghcr.io/rmzi/crate-auth`
+- Images published: `ghcr.io/midineutron/crate` and `ghcr.io/midineutron/crate-auth`
 
 ## Placeholders to replace
 

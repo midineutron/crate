@@ -5,6 +5,128 @@
 This is the map. It ties together the product spec, the delivery plan, and the
 load-bearing technical decisions, and shows how the pieces fit.
 
+## Visual overview
+
+### How the docs and decisions fit
+
+```mermaid
+flowchart TD
+  PRD["PRD.md<br/>what &amp; why"]
+  ARCH["ARCHITECTURE.md<br/>how it fits"]
+  ROAD["ROADMAP.md<br/>when &amp; order"]
+  ADR1["ADR 0001<br/>storage sources"]
+  ADR2["ADR 0002<br/>identity, distribution, roles"]
+  ADR3["ADR 0003<br/>access membranes"]
+  ISSUES["GitHub issues<br/>epics &rarr; tasks"]
+
+  PRD --> ROAD
+  PRD --> ARCH
+  ADR1 --> ARCH
+  ADR2 --> ARCH
+  ADR3 --> ARCH
+  ADR1 -. folded into .-> ROAD
+  ADR2 -. folded into .-> ROAD
+  ADR3 -. folded into .-> ROAD
+  ADR3 -. refines .-> PRD
+  ARCH --> ROAD
+  ROAD --> ISSUES
+
+  classDef truth fill:#1f2937,stroke:#9ca3af,color:#fff;
+  classDef synth fill:#374151,stroke:#9ca3af,color:#fff;
+  class PRD,ADR1,ADR2,ADR3 truth;
+  class ARCH,ROAD synth;
+```
+
+PRD and ADRs are sources of truth; ARCHITECTURE and ROADMAP synthesize them;
+issues are generated from the roadmap.
+
+### The stack and the request path
+
+```mermaid
+flowchart TB
+  subgraph req["every request"]
+    direction LR
+    T["Traefik<br/>forwardAuth"] --> A["crate-auth<br/>token verified at edge"]
+  end
+
+  A -. verify offline vs JWKS .-> MY["mycelium &mdash; THE MOAT<br/>universal identity, key custody,<br/>tap verify, entitlement authority"]
+  A -->|radio / member / owner<br/>decision| W["crate-web<br/>PWA: radio skin + on-demand player"]
+  W --> N["Navidrome<br/>Subsonic API"]
+  N --> RC["rclone sources<br/>local / USB / cloud"]
+  RC --> CACHE["host serving cache<br/>derived, disposable"]
+  MY -. authority always resolves<br/>to the track origin artist .-> W
+
+  subgraph runtime["runtime / packaging (DIST)"]
+    direction LR
+    COMPOSE["compose (canonical)"]
+    K8S["k8s (parallel)"]
+    APP["appliance + cloud<br/>wrap compose"]
+  end
+
+  classDef own fill:#0f766e,stroke:#5eead4,color:#fff;
+  classDef borrow fill:#374151,stroke:#9ca3af,color:#fff;
+  class MY,W,A own;
+  class N,RC,CACHE borrow;
+```
+
+Green = build/own (the moat). Grey = borrowed/abstracted. The control-plane
+(identity, manifest, entitlements) is artist-held; the data-plane (masters) is
+artist-owned storage, only cached by the host.
+
+### The access funnel (membranes)
+
+```mermaid
+flowchart LR
+  V(["visitor<br/>no tag"]) --> R["RADIO<br/>non-interactive broadcast<br/>free &middot; unmetered &middot; cheapest to serve<br/><i>+ discovery surface</i>"]
+  R -->|"tap a BEACON<br/>(presence &mdash; you showed up)"| M["MEMBER<br/>on-demand: pick / search / queue<br/>metered (rolling 30-day)"]
+  M -->|"buy a KEYCHAIN<br/>(ownership &mdash; the record is yours)"| O["OWNER<br/>unlimited &middot; offline &middot; perks<br/>bearer, transferable"]
+
+  classDef radio fill:#1e3a5f,stroke:#93c5fd,color:#fff;
+  classDef member fill:#3b2f5e,stroke:#c4b5fd,color:#fff;
+  classDef owner fill:#0f766e,stroke:#5eead4,color:#fff;
+  class R radio;
+  class M member;
+  class O owner;
+```
+
+Every state is an entitlement authored by mycelium, so it survives the artist
+moving hosts. Beacons are scanned by many (presence); keychains are individual
+(ownership).
+
+### Delivery: milestones, tracks, and the critical path
+
+```mermaid
+flowchart LR
+  M0["M0 Foundations<br/>(done)"] --> M1["M1 Catalog<br/>+ data layer"]
+  M1 --> M2["M2 Proof-of-tap<br/>+ tiers"]
+  M2 --> M3["M3 Sovereignty<br/>spine"]
+  M2 --> M4["M4 Discovery<br/>+ provisioning"]
+  M4 --> M5["M5 Payments<br/>+ polish"]
+
+  SK0["SK-0 walking skeleton<br/>(proves the thesis early)"]
+  MYC["MYC &middot; mycelium"]
+  PLAT["PLAT &middot; platform/NFR"]
+  DIST["DIST &middot; packaging"]
+
+  MYC -.-> SK0
+  MYC -.-> M2
+  MYC -.-> M3
+  MYC -.-> M4
+  DIST -.-> M1
+  PLAT -.-> M2
+  PLAT -.-> M3
+
+  classDef done fill:#374151,stroke:#9ca3af,color:#fff;
+  classDef crit fill:#0f766e,stroke:#5eead4,color:#fff;
+  classDef track fill:#1e293b,stroke:#94a3b8,color:#fff;
+  class M0 done;
+  class M1,M2,M3,SK0 crit;
+  class MYC,PLAT,DIST track;
+```
+
+Critical path is M0&rarr;M1&rarr;M2&rarr;M3 (green); SK-0 de-risks sovereignty
+before the full stack exists; component tracks feed multiple milestones.
+
 ## Document map
 
 | Doc | Answers | Scope |

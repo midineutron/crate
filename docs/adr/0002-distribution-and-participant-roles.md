@@ -32,17 +32,19 @@ These constrain M1–M3 design even though dependent features are later.
    then location-independent and tamper-evident. (Constrains E1.4 manifest schema
    and E3.1 bundle; the bundle already hashes content per R-PORT-5.)
 
-3. **Authority invariant.** Playback/entitlement authority **always resolves to
-   the track's origin artist** (their mycelium), regardless of which node curates
-   a mix or serves the bytes. Entitlement tokens are JWKS-verifiable offline at
-   any node (R-ID-3a generalizes to peers — a serving node validates a listener's
-   token against the origin's JWKS without the origin online).
+3. **Authority invariant.** Entitlement authority resolves to the track's origin
+   artist via **Crate's portable entitlement ledger + the tag identity**, not via
+   per-artist keys. mycelium has **one global issuer** (`iss=mycelium`, single
+   JWKS); its proof-of-tap tokens prove tag authenticity and are JWKS-verifiable
+   offline at any node — Crate then resolves what that tag grants. **See ADR 0004
+   (corrects this).**
 
-4. **Metering boundary at the token/authority layer.** Quota accounting is scoped
-   to the entitlement token / authority, **not solely node-local Redis**, so it
-   survives distributed serving and future earned-credit. v1 may implement
-   node-local, but the boundary is defined at the authority layer. (Constrains
-   E2.3 + MYC-2.)
+4. **Metering boundary at the entitlement-authority layer.** Quota accounting is
+   scoped to **Crate's portable entitlement authority** (control-plane), **not
+   solely node-local Redis** and **not mycelium**, so it survives distributed
+   serving and future earned-credit. v1 may implement node-local, but the
+   boundary is defined at Crate's entitlement layer. (Constrains E2.3 + MYC-2;
+   see ADR 0004.)
 
 5. **Replication is pull-based, gated by a signed grant.** A node may cache and
    re-serve another artist's masters only under a **signed, revocable,

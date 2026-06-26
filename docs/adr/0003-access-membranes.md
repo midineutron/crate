@@ -35,8 +35,10 @@ Metering moves from "limit strangers" to "pressure members toward ownership."
   artist's project/catalog → Owner (offline, unlimited, perks, transferable like
   a record per R-COM-2). Optional claim binds it to identity for cross-device.
 
-Both are NTAG424 SDM (CMAC + counter). The entitlement authority (MYC-2)
-distinguishes **credential type**: `presence` (beacon) vs `ownership` (keychain).
+Both are NTAG424 SDM (CMAC + counter), modeled in **mycelium** as tags /
+collections. mycelium proves authenticity and supplies tag identity; **Crate
+resolves** which membrane a tag confers (presence vs ownership) from that
+identity. Crate does **not** use mycelium content keys. **See ADR 0004.**
 
 ### Radio is per-node and artist-curated
 
@@ -57,8 +59,9 @@ radio (unmetered, non-interactive) → member (on-demand, metered) → owner
 - **Supersedes §8.2 tier semantics and Q1 framing.** Quota applies to *members*,
   not anonymous outsiders; the per-stranger metering-state problem disappears.
 - The session model (E2.2) becomes radio/member/owner; tap verification (E2.1)
-  resolves beacon→presence vs keychain→ownership; metering (E2.3) applies to
-  member on-demand only.
+  is **OAuth proof-of-tap to mycelium**, then **Crate** resolves beacon→presence
+  vs keychain→ownership from tag/collection identity (ADR 0004); metering (E2.3)
+  applies to member on-demand only. **Radio is host-only — no mycelium.**
 - Manifest gains a per-track **radio-eligibility** flag (E1.4/E1.6).
 - Commerce/provisioning (E4.3/E4.4) provisions **two SKUs**: beacons (communal
   presence) and keychains (individual ownership bearer).

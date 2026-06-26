@@ -13,19 +13,22 @@ still under discussion (see "Open architecture questions").
 
 ---
 
-## Component track: MYC — mycelium (the moat)
+## Component track: MYC — mycelium integration
 
-Single-owned. Everything touching keys / identity / entitlement lives here and
-is consumed by milestone epics through an API — never by leaking keys.
+mycelium is an **existing platform** (tag authenticity + identity; single global
+ES256 issuer). Crate **integrates** as an OAuth2 relying party — it does not
+build tap verification or key custody. **Crate owns resolution + entitlement**
+in its portable control-plane; mycelium is loose-coupled, public-surface only.
+See ADR 0004.
 
 | Epic | Deliverable | PRD |
 |---|---|---|
-| MYC-1 | Service skeleton: **universal listener identity** (every participant; artist/DJ/provider are additive role grants) + key custody + JWKS publishing (ADR 0002) | R-ID-1, R-ID-3a |
-| MYC-2 | Entitlement authority API (`preview\|full` + perks decision, never keys) | R-ID-3, R-ID-6 |
-| MYC-3 | NTAG424 key custody + tap verification (CMAC + monotonic counter) | R-ID-2, R-ID-4 |
-| MYC-4 | Token-sealing API (seal/unseal OAuth refresh tokens) | R-DL-7 |
-| MYC-5 | Bundle signing + identity publishing (detached sig over content-hash list) | R-PORT-5 |
-| MYC-6 | Vouch-graph signing | R-DISC-1, R-DISC-4 |
+| MYC-1 | crate-auth as **OAuth2 relying party** to mycelium proof-of-tap (`/links` tap → `/oauth/token` → JWT verified vs JWKS); identity = OIDC sub (claimed) or tag session (bearer) (ADR 0004) | R-ID-3a |
+| MYC-2 | **Crate-side** entitlement authority + ledger (resolves tag→membrane+catalog; portable in control-plane) (ADR 0004) | R-ID-6 |
+| MYC-3 | Tag-info resolution: read tag → collection / collection-group from mycelium (optional GET) to drive resolution (ADR 0004) | R-ID-4 |
+| MYC-4 | Storage-OAuth refresh-token sealing (Crate control-plane; R-DL-7) | R-DL-7 |
+| MYC-5 | **Crate per-artist signing identity** (control-plane, not mycelium): signs bundle / vouch / grants (ADR 0004) | R-PORT-5 |
+| MYC-6 | Vouch-graph signing (Crate artist key, MYC-5) | R-DISC-1, R-DISC-4 |
 
 ## Component track: PLAT — platform / NFR / security
 
@@ -85,11 +88,11 @@ E0.3 PWA + NFS catalog.
 
 | Epic | Deliverable | PRD | Dep |
 |---|---|---|---|
-| E2.1 | NTAG424 SDM verification wired (crate-auth → MYC-3); resolves **beacon→presence** vs **keychain→ownership** credential (ADR 0003) | R-ID-3 | M1, MYC-3 |
+| E2.1 | OAuth proof-of-tap to mycelium; **Crate resolves** beacon→presence vs keychain→ownership from tag/collection identity (no content keys) (ADR 0004) | R-ID-3 | M1, MYC-1, MYC-3 |
 | E2.2 | Graduated **radio / member / owner** sessions (ADR 0003, supersedes §8.2 preview/full), edge token verify vs JWKS | R-ID-5, R-ID-3a | E2.1, MYC-2, PLAT-4 |
 | E2.3 | Rolling-window metering on **member on-demand only** (radio unmetered, owner unmetered; ADR 0003); **quota boundary at token/authority layer** for future distributed serving + earned credit (ADR 0002) | R-AC-1,3,4 | E2.2, MYC-2 |
 | E2.4 | Offline download gated to **owner** tier | R-AC-2, R-UI-4 | E2.2 |
-| E2.5 | Per-node radio serving mode: non-interactive broadcast of artist-flagged tracks (public membrane + discovery surface) (ADR 0003) | R-DISC-3 | E1.6, E2.2 |
+| E2.5 | Per-node radio serving mode: non-interactive broadcast of artist-flagged tracks; **host-only, no mycelium** (public membrane + discovery) (ADR 0003/0004) | R-DISC-3 | E1.6, E2.2 |
 
 ## M3 — Sovereignty spine
 
@@ -106,7 +109,7 @@ E0.3 PWA + NFS catalog.
 |---|---|---|---|
 | E4.1 | Signed `/.well-known/crate-network.json` vouch graph | R-DISC-1,3 | MYC-6 |
 | E4.2 | Label crawler / discovery index | R-DISC-2 | E4.1 |
-| E4.3 | Tag provisioning + entitlement recording (in-person, §14): **beacons** (communal presence) + **keychains** (individual ownership) (ADR 0003) | R-COM-1,3 | M2, MYC-2 |
+| E4.3 | Provision tags via mycelium (beacons / keychains as tags+collections); **Crate records the entitlement** + collection→catalog/membrane mapping (no content keys) (ADR 0004) | R-COM-1,3 | M2, MYC-2, MYC-3 |
 | E4.4 | Bearer ownership (keychain) + optional claim; beacon presence sessions | R-COM-2 | E4.3 |
 
 ## M5 — Payments + polish + federation (deferred, §14)
@@ -152,6 +155,15 @@ DIST-1 (compose) lands early in M1 and underpins M1+; DIST-2/3 gate the §12 onb
 canonical form sharing the same container images; appliance (Crate OS, Pi /
 old-PC) and cloud one-click are thin wrappers over compose. DIST-1 (compose)
 lands in early M1. See track DIST.
+
+### Q-MYC-BOUNDARY — Crate ↔ mycelium integration  (ADR 0004, RESOLVED)
+**Loose coupling.** mycelium (existing platform) = tag authenticity + identity
+only, via OAuth proof-of-tap + optional tag-info GET; **Crate owns resolution +
+entitlement** in its portable control-plane. Single global mycelium issuer (not
+per-artist); **per-artist signing is Crate-side** (bundle/vouch/grants). **No
+content keys. Radio is host-only.** Corrects ADR 0002 #3/#4, ADR 0003 mapping,
+and PRD R-ID-1/R-ID-6/R-PORT-5 framing. See
+`docs/adr/0004-crate-mycelium-integration-boundary.md`.
 
 ### Q-MEMBRANE — Access membranes  (ADR 0003, RESOLVED — refines §8.2 + Q1)
 Outside the network = **radio** (non-interactive broadcast, unmetered, no tag).

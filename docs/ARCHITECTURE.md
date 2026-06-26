@@ -155,9 +155,10 @@ tiered listening, and curated discovery that no host can capture.
   │ ACCESS         membranes: radio | member | owner               │  build / own
   │                tap a beacon → enter · buy a keychain → own      │  (ADR 0003)
   ├──────────────────────────────────────────────────────────────┤
-  │ IDENTITY       mycelium — universal listener identity,          │  build / own
-  │                key custody, tap verify, entitlement authority   │  THE MOAT
-  │                roles (artist/DJ/provider) are additive grants    │  (ADR 0002)
+  │ IDENTITY       mycelium (shared, external): tag authenticity   │  integrate
+  │                + identity, single global issuer, JWKS           │  (ADR 0004)
+  │ ENTITLEMENT    Crate control-plane: resolution + entitlement    │  build / own
+  │                ledger + per-artist signing — PORTABLE, THE MOAT │  (ADR 0002/0004)
   ├──────────────────────────────────────────────────────────────┤
   │ CATALOG        Navidrome per node (Subsonic API)               │  borrow
   ├──────────────────────────────────────────────────────────────┤
@@ -180,13 +181,15 @@ data-plane; the host keeps nothing it cannot rebuild.
 ## How a request flows
 
 ```
-  no tag ───────────────► RADIO   (non-interactive broadcast, unmetered, cheap, public)
-  tap a BEACON ─────────► MEMBER  (on-demand, metered rolling window)
-  own a KEYCHAIN ───────► OWNER   (on-demand, unlimited, offline, perks)
+  no tag ───────────────► RADIO   host URL only, NO mycelium (broadcast, unmetered)
+  tap a BEACON ─────────► MEMBER  OAuth proof-of-tap → Crate resolves → metered
+  own a KEYCHAIN ───────► OWNER   OAuth proof-of-tap → Crate resolves → offline
 
-  every request → Traefik forwardAuth → crate-auth → (token edge-verified vs
-  mycelium JWKS, offline) → crate-web serves from cache ← Navidrome ← rclone
-  source(s). Authority always resolves to the track's origin artist.
+  Member/owner: tap → mycelium proof-of-tap (OAuth) → crate-auth verifies JWT
+  offline vs mycelium JWKS, reads tag + collection identity → Crate's portable
+  entitlement ledger resolves the membrane + catalog → crate-web serves from
+  cache ← Navidrome ← rclone source(s). mycelium proves the tag; CRATE decides
+  what it grants. No content keys. (ADR 0004)
 ```
 
 ## The four decisions that shape everything (ADR index)
@@ -194,8 +197,9 @@ data-plane; the host keeps nothing it cannot rebuild.
 | ADR | Decision | What it unlocks | Folded into |
 |---|---|---|---|
 | **0001** | Storage is a **composable set of sources** (local/USB/cloud), per-source roles, authority by priority, opinionated sync | Plug-and-play appliance *and* cloud portability from one code path | E1.2, E1.4, E3.4 |
-| **0002** | **Universal listener identity** + roles; **content-addressed tracks**; origin-resolves authority; metering at the authority layer; **pull replication via signed grants** | DJ mixes-by-reference and a distribution mesh that scale **without** moving authority off the origin | MYC-1, E1.6, E2.3, E3.1 |
+| **0002** | **Universal listener identity** + roles; **content-addressed tracks**; Crate-side entitlement authority; metering at that authority; **pull replication via signed grants** | DJ mixes-by-reference and a distribution mesh that scale **without** moving authority off the origin | MYC-1, E1.6, E2.3, E3.1 |
 | **0003** | **Access membranes**: radio / member / owner; **beacon** (presence, many scan) vs **keychain** (ownership, individual) | Makes "you had to show up" real; aligns cheapest-to-serve tier with the free public tier | E2.1–E2.5, E4.3, E4.4 |
+| **0004** | **Crate ↔ mycelium = loose coupling.** mycelium (existing platform) proves tag authenticity + identity; **Crate owns resolution + entitlement** (portable control-plane). Single global mycelium issuer; per-artist signing is Crate-side; no content keys; radio host-only | An external trust fabric Crate isn't deeply coupled to; sovereignty via Crate's portable ledger | MYC-1/2/3/5, E2.1, E4.3 |
 | *(DIST)* | **compose canonical**, k8s parallel, appliance/cloud wrap compose | One software, four operator tiers (PRD G6) | DIST-1 in early M1 |
 
 ## How it all fits: the funnel
@@ -208,13 +212,13 @@ data-plane; the host keeps nothing it cannot rebuild.
    gentle conversion pressure.
 3. They **buy a keychain** — the ownership membrane. Now they **own** the
    catalog: offline, unlimited, perks, transferable like a record.
-4. Everything they can do is an **entitlement authored by mycelium**, so it
-   survives the artist moving hosts. Tags keep working; access doesn't depend on
-   host goodwill.
+4. Everything they can do is an **entitlement in Crate's portable control-plane**
+   (mycelium only proves the tag), so it survives the artist moving Crate hosts.
+   Tags keep working; access doesn't depend on host goodwill. (ADR 0004)
 5. As the network grows, tracks are served by a **pull-replicated mesh** of nodes
    (closest/strongest connection), so a solo artist's node is never the
    bandwidth ceiling — yet every play still resolves to the **origin artist's
-   authority**.
+   Crate-side entitlement authority**.
 
 ## Now vs later (so the near-term build doesn't paint us in)
 
@@ -239,6 +243,6 @@ data-plane; the host keeps nothing it cannot rebuild.
 
 The critical path is **M0 → M1 → M2 → M3**, with **SK-0** (a throwaway walking
 skeleton) proving the sovereignty thesis — migrate a trivial node host A→B with
-one entitlement intact — before the full stack is built. mycelium (MYC track) is
-the moat and is consumed by every milestone via API; it is never allowed to leak
-keys to the host. See `ROADMAP.md` for the epic breakdown and dependency DAG.
+one entitlement intact — before the full stack is built. mycelium (MYC track) is an **external, loose-coupled** trust fabric Crate
+integrates with as an OAuth2 relying party (ADR 0004); the moat Crate **owns** is
+the portable entitlement + presentation control-plane. See `ROADMAP.md` for the epic breakdown and dependency DAG.

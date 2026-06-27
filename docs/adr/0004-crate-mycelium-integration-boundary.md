@@ -72,6 +72,21 @@ Radio is **host-only**: a public host URL, **no mycelium interaction** at all.
   A mycelium outage blocks *new* taps but not radio nor already-issued,
   edge-verified sessions.
 
+## Addressing — no co-location assumption
+
+A crate node must address external dependencies (mycelium today; storage and peer
+nodes later) by **public, configurable URLs** — never by in-cluster service DNS
+(`*.svc.cluster.local`) or any address that assumes co-location. Only a node's
+**own** components (crate-auth, crate-web, Navidrome, Traefik) may use
+intra-deployment addresses. This keeps a node portable across compose, appliance,
+cloud, and clusters, and is required for the distribution mesh (nodes reach each
+other externally). Runtime provider endpoints are `OAUTH_TOKEN_URL` /
+`OAUTH_JWKS_URL` (PUBLIC); the in-cluster default was a bug.
+
+**Consequence for mycelium:** an off-cluster relying party needs mycelium's
+`/oauth/token` reachable publicly (alongside the already-public `/.well-known/jwks.json`).
+Confirm/expose this on the mycelium side.
+
 ## Supersedes / corrects
 
 - **ADR 0002 #3** — not "per-artist JWKS"; one platform issuer, authority via

@@ -13,6 +13,21 @@ still under discussion (see "Open architecture questions").
 
 ---
 
+## Progress — shipped beyond M0
+
+| Item | Status | PR / ref |
+|---|---|---|
+| **MYC-1** generic OAuth2/OIDC relying party (mycelium = one provider; discovery, ES256+RS256, state+PKCE) | **Shipped** | #17 (+ ADR 0005) |
+| **DIST-1** docker-compose canonical stack (laptop default + gated profile, AUTH_LOCAL_OPEN); GHCR images via CI | **Shipped** | #21, #10 closed |
+| CloudFront auth back-compat via `authMode` switch | **Shipped** | #18 |
+| External provider addressing — no in-cluster co-location (`OAUTH_*` public URLs) | **Shipped** | #19 (+ ADR 0004 addressing rule) |
+| PRD personas reframed (universal listener + additive roles) | **Shipped** | #20 (ADR 0002) |
+
+Catalog + data layer (E1.1–E1.6, issues #11–#16) and the rest of M2–M5 are not
+yet started.
+
+---
+
 ## Component track: MYC — mycelium integration
 
 mycelium is an **existing platform** (tag authenticity + identity; single global
@@ -23,7 +38,7 @@ See ADR 0004.
 
 | Epic | Deliverable | PRD |
 |---|---|---|
-| MYC-1 | crate-auth as **generic OAuth2/OIDC relying party** — mycelium is one provider (tap-initiated, ES256); OIDC discovery, ES256+RS256, state+PKCE for standard IdPs (ADR 0004/0005). **Partially shipped (PR #17).** | R-ID-3a |
+| MYC-1 | crate-auth as **generic OAuth2/OIDC relying party** — mycelium is one provider (tap-initiated, ES256); OIDC discovery, ES256+RS256, state+PKCE for standard IdPs (ADR 0004/0005); plus AUTH_LOCAL_OPEN local mode. **Shipped (PR #17, #21).** | R-ID-3a |
 | MYC-2 | **Crate-side** entitlement authority + ledger (resolves tag→membrane+catalog; portable in control-plane) (ADR 0004) | R-ID-6 |
 | MYC-3 | Tag-info resolution: read tag → collection / collection-group from mycelium (optional GET) to drive resolution (ADR 0004) | R-ID-4 |
 | MYC-4 | Storage-OAuth refresh-token sealing (Crate control-plane; R-DL-7) | R-DL-7 |
@@ -50,7 +65,7 @@ downstream milestone work runnable locally and unblocks the onboarding tiers).
 
 | Epic | Deliverable | Operator |
 |---|---|---|
-| DIST-1 | Canonical container images + `docker-compose` stack (**early M1**) | baseline for all tiers |
+| DIST-1 | Canonical container images + `docker-compose` stack. **Shipped (PR #21, issue #10 closed)** — laptop default + gated profile | baseline for all tiers |
 | DIST-2 | Appliance image ("Crate OS"): flashable Pi / old-PC distro, setup wizard | non-technical, plug-and-play |
 | DIST-3 | Cloud one-click / hosted deploy | non-technical, cloud |
 | DIST-4 | k3s manifests (exists today) | technical, cluster |

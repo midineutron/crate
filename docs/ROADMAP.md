@@ -49,8 +49,8 @@ See ADR 0004.
 | MYC-2 | **Crate-side** entitlement authority + ledger (resolves tag→membrane+catalog; portable in control-plane) (ADR 0004) | R-ID-6 |
 | MYC-3 | Tag-info resolution: read tag → collection / collection-group from mycelium (optional GET) to drive resolution (ADR 0004) | R-ID-4 |
 | MYC-4 | Storage-OAuth refresh-token sealing (Crate control-plane; R-DL-7) | R-DL-7 |
-| MYC-5 | **Crate per-artist signing identity** (control-plane, not mycelium): signs bundle / vouch / grants (ADR 0004) | R-PORT-5 |
-| MYC-6 | Vouch-graph signing (Crate artist key, MYC-5) | R-DISC-1, R-DISC-4 |
+| MYC-5 | **Crate per-owner signing identity** (artist/DJ; control-plane, not mycelium): signs bundle / vouch / grants (ADR 0004) | R-PORT-5 |
+| MYC-6 | Vouch-graph signing (Crate owner key, MYC-5) | R-DISC-1, R-DISC-4 |
 
 ## Component track: PLAT — platform / NFR / security
 
@@ -114,7 +114,7 @@ E0.3 PWA + NFS catalog.
 | E2.2 | Graduated **radio / member / owner** sessions (ADR 0003, supersedes §8.2 preview/full), edge token verify vs JWKS | R-ID-5, R-ID-3a | E2.1, MYC-2, PLAT-4 |
 | E2.3 | Rolling-window metering on **member on-demand only** (radio unmetered, owner unmetered; ADR 0003); **quota boundary at token/authority layer** for future distributed serving + earned credit (ADR 0002) | R-AC-1,3,4 | E2.2, MYC-2 |
 | E2.4 | Offline download gated to **owner** tier | R-AC-2, R-UI-4 | E2.2 |
-| E2.5 | Per-node radio serving mode: non-interactive broadcast of artist-flagged tracks; **host-only, no mycelium** (public membrane + discovery) (ADR 0003/0004) | R-DISC-3 | E1.6, E2.2 |
+| E2.5 | Per-node radio serving mode: non-interactive broadcast of **owner-flagged** tracks (any crate owner — artist/DJ/label); **host-only, no mycelium** (public membrane + discovery) (ADR 0003/0004/0006) | R-DISC-3 | E1.6, E2.2 |
 
 ## M3 — Sovereignty spine
 
@@ -129,7 +129,7 @@ E0.3 PWA + NFS catalog.
 
 | Epic | Deliverable | PRD | Dep |
 |---|---|---|---|
-| E4.1 | Signed `/.well-known/crate-network.json` vouch graph | R-DISC-1,3 | MYC-6 |
+| E4.1 | Signed `/.well-known/crate-network.json` vouch graph; discovery surface = artist vouch graph **+ DJ curation/subscription graph** (reference-mixes) (ADR 0006) | R-DISC-1,3 | MYC-6 |
 | E4.2 | Label crawler / discovery index | R-DISC-2 | E4.1 |
 | E4.3 | Provision tags via mycelium (beacons / keychains as tags+collections); **Crate records the entitlement** + collection→catalog/membrane mapping (no content keys) (ADR 0004) | R-COM-1,3 | M2, MYC-2, MYC-3 |
 | E4.4 | Bearer ownership (keychain) + optional claim; beacon presence sessions | R-COM-2 | E4.3 |
@@ -207,7 +207,7 @@ not required. See `docs/adr/0005-pluggable-auth-provider.md`.
 **Loose coupling.** mycelium (existing platform) = tag authenticity + identity
 only, via OAuth proof-of-tap + optional tag-info GET; **Crate owns resolution +
 entitlement** in its portable control-plane. Single global mycelium issuer (not
-per-artist); **per-artist signing is Crate-side** (bundle/vouch/grants). **No
+per-artist); **per-owner signing is Crate-side** (bundle/vouch/grants). **No
 content keys. Radio is host-only.** Corrects ADR 0002 #3/#4, ADR 0003 mapping,
 and PRD R-ID-1/R-ID-6/R-PORT-5 framing. See
 `docs/adr/0004-crate-mycelium-integration-boundary.md`.
@@ -216,7 +216,7 @@ and PRD R-ID-1/R-ID-6/R-PORT-5 framing. See
 Outside the network = **radio** (non-interactive broadcast, unmetered, no tag).
 Inside = **member** (tap a shared **beacon** → on-demand, metered). Core =
 **owner** (buy an individual **keychain** → offline, unlimited, perks, bearer).
-Radio is per-node and artist-curated (per-track radio flag); network dial
+Radio is per-node and owner-curated (per-track radio flag); network dial
 deferred. Folded into E1.6, E2.1, E2.2, E2.3, E2.4, E2.5, E4.3, E4.4. See
 `docs/adr/0003-access-membranes.md`. Open knobs: beacon session lifetime; radio
 as live stream vs shuffled flagged set.
@@ -253,7 +253,7 @@ source sets get the best of both — local-first for plug-and-play, cloud mirror
 for portability and backup.
 
 **Resolved → ADR 0001** (`docs/adr/0001-storage-source-composition.md`):
-composable sources with per-source roles; authority by artist-configured
+composable sources with per-source roles; authority by owner-configured
 priority; one designated write/upload target; opinionated-default sync with user
 override; single selectable source in M1, multi-source union + sync in M3 (E3.4).
 Remaining knobs (default sync specifics, union create-policy, USB hot-plug UX)

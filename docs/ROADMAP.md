@@ -8,6 +8,13 @@ Two-tier delivery plan derived from `docs/PRD.md`.
   milestone epics via API. Prevents a component (e.g. mycelium) from being
   smeared across unrelated milestones.
 
+**Direction (ADR 0006):** Crate is **listener-first** — everyone is a listener, and
+artist / DJ / broadcaster / label are **composable roles** on one sovereign
+identity; a node is **role-activated** (client by default). The **three-tier
+access model** (radio → member → owner) is fundamental and applies to every crate
+owner. The DJ is first-class, with a **private keychain-gated collection**
+(cold-start wedge) and **public reference-mixes** (scale with the network).
+
 Status: **Draft v0.1** — structure agreed; deployment topology and USB ingest
 still under discussion (see "Open architecture questions").
 
@@ -42,8 +49,8 @@ See ADR 0004.
 | MYC-2 | **Crate-side** entitlement authority + ledger (resolves tag→membrane+catalog; portable in control-plane) (ADR 0004) | R-ID-6 |
 | MYC-3 | Tag-info resolution: read tag → collection / collection-group from mycelium (optional GET) to drive resolution (ADR 0004) | R-ID-4 |
 | MYC-4 | Storage-OAuth refresh-token sealing (Crate control-plane; R-DL-7) | R-DL-7 |
-| MYC-5 | **Crate per-artist signing identity** (control-plane, not mycelium): signs bundle / vouch / grants (ADR 0004) | R-PORT-5 |
-| MYC-6 | Vouch-graph signing (Crate artist key, MYC-5) | R-DISC-1, R-DISC-4 |
+| MYC-5 | **Crate per-owner signing identity** (artist/DJ; control-plane, not mycelium): signs bundle / vouch / grants (ADR 0004) | R-PORT-5 |
+| MYC-6 | Vouch-graph signing (Crate owner key, MYC-5) | R-DISC-1, R-DISC-4 |
 
 ## Component track: PLAT — platform / NFR / security
 
@@ -97,7 +104,7 @@ E0.3 PWA + NFS catalog.
 | E1.3 | Cache mgmt: LRU + size cap, manifest/artwork pinned, rebuildable | R-DL-1,4,6 | E1.2 |
 | E1.4 | Ingest watcher + auto-manifest write-back; in-interface upload → write-target source | R-CAT-4 | E1.2 |
 | E1.5 | "Crate is a folder" onboarding (connect→drop→play) | R-DL-3, G2 | E1.1-1.4 |
-| E1.6 | Manifest schema: content-addressed track IDs (ADR 0002) + per-track **radio-eligibility** flag (ADR 0003) | R-CAT-4 | E1.4 |
+| E1.6 | Manifest schema: content-addressed track IDs (ADR 0002) + per-track **radio-eligibility** flag (ADR 0003) + **first-class mix object** (signed content-addressed reference list, peer to a track; basis for DJ public reference-mixes) (ADR 0006) | R-CAT-4 | E1.4 |
 
 ## M2 — Proof-of-tap + tiers
 
@@ -107,7 +114,7 @@ E0.3 PWA + NFS catalog.
 | E2.2 | Graduated **radio / member / owner** sessions (ADR 0003, supersedes §8.2 preview/full), edge token verify vs JWKS | R-ID-5, R-ID-3a | E2.1, MYC-2, PLAT-4 |
 | E2.3 | Rolling-window metering on **member on-demand only** (radio unmetered, owner unmetered; ADR 0003); **quota boundary at token/authority layer** for future distributed serving + earned credit (ADR 0002) | R-AC-1,3,4 | E2.2, MYC-2 |
 | E2.4 | Offline download gated to **owner** tier | R-AC-2, R-UI-4 | E2.2 |
-| E2.5 | Per-node radio serving mode: non-interactive broadcast of artist-flagged tracks; **host-only, no mycelium** (public membrane + discovery) (ADR 0003/0004) | R-DISC-3 | E1.6, E2.2 |
+| E2.5 | Per-node radio serving mode: non-interactive broadcast of **owner-flagged** tracks (any crate owner — artist/DJ/label); **host-only, no mycelium** (public membrane + discovery) (ADR 0003/0004/0006) | R-DISC-3 | E1.6, E2.2 |
 
 ## M3 — Sovereignty spine
 
@@ -122,7 +129,7 @@ E0.3 PWA + NFS catalog.
 
 | Epic | Deliverable | PRD | Dep |
 |---|---|---|---|
-| E4.1 | Signed `/.well-known/crate-network.json` vouch graph | R-DISC-1,3 | MYC-6 |
+| E4.1 | Signed `/.well-known/crate-network.json` vouch graph; discovery surface = artist vouch graph **+ DJ curation/subscription graph** (reference-mixes) (ADR 0006) | R-DISC-1,3 | MYC-6 |
 | E4.2 | Label crawler / discovery index | R-DISC-2 | E4.1 |
 | E4.3 | Provision tags via mycelium (beacons / keychains as tags+collections); **Crate records the entitlement** + collection→catalog/membrane mapping (no content keys) (ADR 0004) | R-COM-1,3 | M2, MYC-2, MYC-3 |
 | E4.4 | Bearer ownership (keychain) + optional claim; beacon presence sessions | R-COM-2 | E4.3 |
@@ -163,6 +170,17 @@ DIST-1 (compose) lands early in M1 and underpins M1+; DIST-2/3 gate the §12 onb
 
 ---
 
+## Cold-start sequencing (ADR 0006)
+
+Lead with what works on an empty network: **a solo crate owner + keychain +
+radio** — an artist with their own catalog, or a **DJ with a private,
+keychain-gated collection** (the original Crate intent). Layer **beacons /
+in-person presence** and the **public reference-mix network + DJ discovery graph**
+as density grows. Designed-in from the start; not built first (mixes need an
+artist/track substrate to reference).
+
+---
+
 ## Open architecture questions
 
 ### Q-DIST — Deployment topology / packaging  (RESOLVED)
@@ -170,6 +188,13 @@ DIST-1 (compose) lands early in M1 and underpins M1+; DIST-2/3 gate the §12 onb
 canonical form sharing the same container images; appliance (Crate OS, Pi /
 old-PC) and cloud one-click are thin wrappers over compose. DIST-1 (compose)
 lands in early M1. See track DIST.
+
+### Q-DIRECTION — Listener-first, composable roles  (ADR 0006, RESOLVED)
+Reframes the project listener-first; artist/DJ/broadcaster/label are composable
+roles; node is role-activated; three-tier access (radio/member/owner) is a
+fundamental for every owner; DJ is first-class (private keychain collection +
+public reference-mixes); the mix is a first-class object. See
+`docs/adr/0006-listener-first-composable-roles.md`.
 
 ### Q-AUTH-PROVIDER — Pluggable auth provider  (ADR 0005, RESOLVED — implemented)
 crate-auth is a **generic OAuth2/OIDC client**; mycelium is one provider profile.
@@ -182,7 +207,7 @@ not required. See `docs/adr/0005-pluggable-auth-provider.md`.
 **Loose coupling.** mycelium (existing platform) = tag authenticity + identity
 only, via OAuth proof-of-tap + optional tag-info GET; **Crate owns resolution +
 entitlement** in its portable control-plane. Single global mycelium issuer (not
-per-artist); **per-artist signing is Crate-side** (bundle/vouch/grants). **No
+per-artist); **per-owner signing is Crate-side** (bundle/vouch/grants). **No
 content keys. Radio is host-only.** Corrects ADR 0002 #3/#4, ADR 0003 mapping,
 and PRD R-ID-1/R-ID-6/R-PORT-5 framing. See
 `docs/adr/0004-crate-mycelium-integration-boundary.md`.
@@ -191,7 +216,7 @@ and PRD R-ID-1/R-ID-6/R-PORT-5 framing. See
 Outside the network = **radio** (non-interactive broadcast, unmetered, no tag).
 Inside = **member** (tap a shared **beacon** → on-demand, metered). Core =
 **owner** (buy an individual **keychain** → offline, unlimited, perks, bearer).
-Radio is per-node and artist-curated (per-track radio flag); network dial
+Radio is per-node and owner-curated (per-track radio flag); network dial
 deferred. Folded into E1.6, E2.1, E2.2, E2.3, E2.4, E2.5, E4.3, E4.4. See
 `docs/adr/0003-access-membranes.md`. Open knobs: beacon session lifetime; radio
 as live stream vs shuffled flagged set.
@@ -228,7 +253,7 @@ source sets get the best of both — local-first for plug-and-play, cloud mirror
 for portability and backup.
 
 **Resolved → ADR 0001** (`docs/adr/0001-storage-source-composition.md`):
-composable sources with per-source roles; authority by artist-configured
+composable sources with per-source roles; authority by owner-configured
 priority; one designated write/upload target; opinionated-default sync with user
 override; single selectable source in M1, multi-source union + sync in M3 (E3.4).
 Remaining knobs (default sync specifics, union create-policy, USB hot-plug UX)

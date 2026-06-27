@@ -2,25 +2,27 @@
 
 > Your crate is yours. Own it, share it. It's just music.
 
-**Status:** Draft v0.2
+**Status:** Draft v0.3
 **Owner:** midineutron
-**Last updated:** 2026-06-24
+**Last updated:** 2026-06-27
 
 ---
 
 ## 1. Summary
 
-Crate is an artist-first, self-sovereign music streaming platform. Each artist
-runs an independent **Crate node** — a branded streaming app over a catalog they
-own. Nodes can be self-hosted or operated on the artist's behalf by a **label**,
-but the artist holds the root of trust the entire time: their identity, their
-keys, and their masters never belong to the host.
+Crate is a listener-first, self-sovereign music network. Every participant is a
+listener — a sovereign, portable identity — who may hold **composable roles** on
+top of that base: artist, DJ, broadcaster/provider, or label. A participant is a
+client by default; a **node is participant/role-activated**, materializing only
+when a role that hosts is taken on.
 
-Access to a node is gated by physical **NFC tags** the artist sells.
-Anyone can land on a node and sample it under a metered preview tier; owning the
-artist's tag unlocks full access, including offline ownership. Nodes advertise
-peer nodes through a signed, artist-curated graph, so discovery spreads by
-network effect rather than by algorithm.
+Three-tier access is fundamental to every crate owner — artist, DJ, or label
+alike. **Radio** (public, non-interactive, broadcast-like, per owner) is the
+discovery surface. **Member** access is unlocked in person by scanning a
+**beacon** NFC tag. **Owner** access is unlocked by buying a **keychain** NFC
+tag, with scope defined by the crate owner. Sovereignty is an architectural
+guarantee for every participant, not a slogan, and no host can capture the
+relationship between a participant and their audience.
 
 Crate is not a new streaming silo. It is a portable format for owning and sharing
 music, plus the runtime and trust fabric to make that format live anywhere.
@@ -48,23 +50,26 @@ capture.
 
 ### Goals
 
-- **G1 — Sovereignty by construction.** An artist can move their node between
-  hosts (self → label → another label → self) with zero loss of catalog,
-  identity, fan entitlements, or branding, and without the prior host's
-  cooperation beyond releasing a cache.
-- **G2 — Plug-and-play for non-technical artists.** Onboarding is "connect your
-  cloud drive, drop in your music, name your crate." No CLI, no S3, no manifest
-  editing.
+- **G1 — Sovereignty by construction.** Any participant (artist, DJ, label) can
+  move their node between hosts with zero loss of catalog, identity, fan
+  entitlements, or branding, and without the prior host's cooperation beyond
+  releasing a cache.
+- **G2 — Plug-and-play for non-technical participants.** Onboarding is "connect
+  your cloud drive, drop in your music, name your crate." No CLI, no S3, no
+  manifest editing.
 - **G3 — Physical-good access economy.** NFC tags act as cryptographically
-  unforgeable keys to a node. Selling a tag sells access (and optionally
-  ownership/perks).
-- **G4 — Graduated access funnel.** Strangers can browse and sample under a
-  metered preview tier; tag owners get full access and offline ownership.
+  unforgeable keys to a node. Selling a keychain tag sells access (and
+  optionally ownership/perks); distributing a beacon tag enables in-person
+  member access.
+- **G4 — Three-tier access funnel.** Any visitor hears radio; showing up and
+  tapping a beacon unlocks member on-demand; buying a keychain unlocks owner
+  access and offline ownership.
 - **G5 — Network-effect discovery.** Nodes advertise peer nodes through a signed,
-  artist-curated graph; labels aggregate these into a discovery index.
+  participant-curated vouch graph; DJs provide a curation discovery path; labels
+  aggregate these into a discovery index.
 - **G6 — One software, three operators.** The same software serves the
-  self-hosting artist, the label hosting many artists, and the federation between
-  them. No multi-tenant fork.
+  self-hosting artist, the DJ with a private collection, the label hosting many
+  crates, and the federation between them. No multi-tenant fork.
 
 ### Non-goals (for v1)
 
@@ -81,20 +86,30 @@ capture.
 
 ## 4. Principles
 
-1. **Artist holds the root.** Keys and masters live with the artist. Hosts run
-   derived, disposable state.
+1. **Participants hold the root.** Keys and masters live with the crate owner —
+   artist, DJ, or label alike. Hosts run derived, disposable state.
 2. **Portability is a first-class operation**, not an export feature.
-3. **Legibility for the non-technical.** The crate should be something an artist
-   can literally see and understand (a folder they own).
+3. **Legibility for the non-technical.** The crate should be something a
+   participant can literally see and understand (a folder they own).
 4. **Borrow solved layers, own differentiated layers.** Don't rebuild catalog
    indexing or storage connectors; do own identity, presentation, and the access
    economy.
 5. **Same software across self-host, label, and federation.** Topology, not
    tenancy.
-6. **Everyone is a listener.** Identity is universal; artist, DJ, label, and
-   future roles are additive grants on one listener identity, never separate
-   account types.
-7. **Open by default for discovery; gated by ownership for access.**
+6. **Everyone is a listener.** Identity is universal; artist, DJ, broadcaster,
+   label, and future roles are additive grants on one listener identity, never
+   separate account types.
+7. **Roles are composable.** A single identity can hold several roles at once
+   (e.g. artist + DJ + broadcaster). A listener becomes a node when they take on
+   a role that hosts; a node is participant/role-activated, not assumed.
+8. **Three-tier access is fundamental.** Radio / member / owner applies to every
+   crate owner — artist, DJ, or label. It is the architecture, not a detail.
+9. **References, not copies.** Artist crates contain entirely the artist's own
+   original work (original masters, original ownership by assumption). A DJ's
+   public reference-mixes reference tracks in their origin artist crates — Crate
+   does not host public copies of others' work. A DJ's private collection is
+   lending, gated by keychain, not publishing.
+10. **Open by default for discovery; gated by ownership for access.**
 
 ---
 
@@ -106,21 +121,35 @@ separate account type. A person can hold several roles at once, and new roles ca
 be introduced over time without anyone needing a new identity. (Identity model:
 ADR 0002.)
 
-- **Listener (base — everyone).** Discovers a node and samples it under the open
-  tier; can acquire a tag to unlock full access and offline listening; follows the
-  artist's vouch graph to neighboring nodes. Every participant starts here.
-- **Artist (role).** A listener who publishes. Wants their music online, branded,
-  and theirs.
-  - *Non-technical:* connects a cloud drive, drops in files, sells tags at shows.
+- **Listener (base — everyone).** Discovers a node and samples it under the radio
+  tier; can scan a beacon to become a member, or buy a keychain to become an
+  owner; follows the vouch graph to neighboring nodes. Every participant starts
+  here.
+- **Artist (role).** A listener who publishes a catalog of **entirely their own
+  original work** (owns the masters). Wants their music online, branded, and
+  theirs.
+  - *Non-technical:* connects a cloud drive, drops in files, sells keychains at
+    shows; distributes beacons for in-person access.
   - *Technical:* self-hosts on their own cluster/NAS/S3, wants full infra control.
-- **DJ / curator (role).** A listener who publishes mixes and playlists that
-  *reference* tracks across crates — curation by reference, with authority always
-  resolving to each track's origin artist.
-- **Label operator (role).** Hosts many artists' nodes, runs the discovery index
-  and NFC fulfillment/commerce, and provides infrastructure to artists who don't
-  self-host — without owning their work.
-- **Future roles.** e.g. provider — introduced the same way: an additive grant on
-  the one listener identity.
+- **DJ (role).** An active listener, curator, and **discovery point** that routes
+  listeners to artist crates. Dual-mode:
+  - *Private collection (works day one).* A DJ uploads their own crate of music
+    and shares it **keychain-gated** — the digital form of lending a crate of
+    records. This is the cold-start wedge and the original Crate intent. Needs no
+    network density.
+  - *Public reference-mixes (scales with the network).* A DJ publishes **mixes**
+    — signed, content-addressed lists of `{origin-crate, track-hash}` — that
+    reference tracks in their origin artist crates. Each play resolves against
+    the track's origin membrane and authority. References, not copies.
+  DJ crates are subscribable; subscribing to a DJ is a discovery path to artist
+  crates, not a bypass of artist sovereignty.
+- **Broadcaster / Provider (opt-in role).** A listener who provides resources to
+  the network — replication and an additional source to pull audio from — and
+  earns perks for it. **This is how a listener becomes a node** without hosting a
+  full catalog. Designed-in; provider-credit economy is deferred (ADR 0002).
+- **Label operator (role).** Hosts many crates (artist and/or DJ), runs the
+  discovery index and NFC fulfillment/commerce, and provides infrastructure to
+  participants who don't self-host — without owning their work.
 
 ---
 
@@ -128,17 +157,22 @@ ADR 0002.)
 
 | Term | Meaning |
 |---|---|
-| **Crate / Node** | One artist's independent streaming instance. The unit of deployment. |
-| **Label** | An operator hosting many nodes + the discovery index + NFC commerce. |
+| **Crate / Node** | A participant's role-activated streaming instance. The unit of deployment. A listener is a client by default; the node materializes when a hosting role is taken on. |
+| **Label** | An operator hosting many crates (artist and/or DJ) + the discovery index + NFC commerce. |
 | **Listener** | The base participant identity. Everyone is a listener; all other roles are additive. |
-| **Role** | An additive capability (artist, DJ/curator, label, future roles) granted on a listener identity, not a separate account. |
-| **mycelium** | The artist's portable root of trust: sovereign identity, key custody, entitlement authority. Travels with the artist, not the host. |
+| **Role** | An additive capability (artist, DJ, broadcaster/provider, label, future roles) granted on a listener identity, not a separate account. Roles are composable — a single identity can hold several at once. |
+| **Broadcaster / Provider** | A listener who provides resources to the network (replication, audio serving) and earns perks. This is how a listener opts in to becoming a node without hosting a full catalog. |
+| **DJ** | A listener who curates and acts as a discovery point. Dual-mode: private keychain-gated collection (cold-start, lending, no network density required) and/or public reference-mixes (scale with the network, references not copies). |
+| **Mix** | A first-class, signed, content-addressed reference object — a list of `{origin-crate, track-hash}` pointers — peer to a track in the manifest. Each play resolves against the referenced track's origin membrane and authority. |
+| **Beacon** | An NFC tag type. The in-person tier-2 entry point: scanned by many people to enter the member tier. Proves physical presence. |
+| **Keychain** | An NFC tag type. The individual tier-3 ownership token. Scope is owner-defined and arbitrary (a project run, a full discography, a DJ's mixes or private collection, a special edition). |
+| **mycelium** | The participant's portable root of trust: sovereign identity, key custody, entitlement authority. Travels with the participant, not the host. |
 | **Proof-of-tap** | A cryptographically verified NFC tap — authenticity and anti-replay handled by mycelium — that mints or upgrades a session. |
-| **Control-plane** | The crate's portable soul: identity refs, manifest, entitlement ledger, config, vouch graph. Small, artist-held. |
-| **Data-plane** | The heavy audio masters in artist-controlled storage, referenced by the manifest, cached by the host. |
+| **Control-plane** | The crate's portable soul: identity refs, manifest, entitlement ledger, config, vouch graph. Small, participant-held. |
+| **Data-plane** | The heavy audio masters in participant-controlled storage, referenced by the manifest, cached by the host. |
 | **crate.bundle** | The portable package format that moves a node between hosts. |
-| **Entitlement** | A grant (full access, offline, perks) bound to a tag and/or identity, authored by mycelium. |
-| **Vouch graph** | A signed `/.well-known/crate-network.json` listing peer nodes an artist endorses. |
+| **Entitlement** | A grant (member access, owner access, offline, perks) bound to a tag and/or identity, authored by mycelium. |
+| **Vouch graph** | A signed `/.well-known/crate-network.json` listing peer nodes a participant endorses. |
 
 ---
 
@@ -164,7 +198,7 @@ ADR 0002.)
                             ┌────────────┐  verify tap once → signed entitlement token
         every request ─► Traefik ─forwardAuth─► crate-auth ──────────────► mycelium
                             │                       │  (token verified        (key custody,
-              preview/full  │                       │   at edge vs JWKS)       tap verify,
+          radio/member/owner │                       │   at edge vs JWKS)       tap verify,
               session       │                       │ ◄─────────────────────  entitlement)
                             ▼                        ▼
                     ┌───────────────┐         metering (Redis: rolling 30d quota)
@@ -213,41 +247,49 @@ custodied in mycelium.
   each tap is uniquely verifiable; provisioning specifics are mycelium's concern.
 - **R-ID-3** — crate-auth verifies each tap's authenticity and anti-replay by
   delegating to mycelium; mycelium returns an entitlement decision
-  (`preview | full` + perks), never the key.
+  (`radio | member | owner` + perks), never the key.
 - **R-ID-3a** — **[Decision Q2]** mycelium verifies a tap **once** and mints a
   short-lived **signed entitlement token**; the edge verifies it against
-  mycelium's JWKS *offline* on every request. Full-tier TTL ~24h with silent
+  mycelium's JWKS *offline* on every request. Owner-tier TTL ~24h with silent
   refresh; revocation via short TTL (+ optional revocation list). The request path
   does not depend on mycelium uptime — a node stays accessible if the
   index/authority is briefly unreachable.
 - **R-ID-4** — Counter state is tracked to detect replay and cloning; anomalous
   taps (e.g., same tag, distant locations, short interval) are flaggable.
-- **R-ID-5** — Sessions are graduated: absence of a tag yields a **preview**
+- **R-ID-5** — Sessions are graduated: absence of a tag yields a **radio**
   session, not a denial. The decoy 502 path is reserved for abuse, not arrival.
 - **R-ID-6** — Entitlements are authored by mycelium and travel with the artist's
   identity across hosts, so fan access survives migration.
 
 ### 8.2 Access tiers and metering
 
-| Tier | Browse | Listens | Quality | Offline | Trigger |
-|---|---|---|---|---|---|
-| **Preview** | Full | Rolling 30-day quota (~25 streams) | Stream-only | No | Default for any visitor |
-| **Full** | Full | Unlimited | Full | **Yes** | Owns the node's NFC tag |
-| **Abuse** | — | — | — | — | Decoy 502 |
+Three-tier access is fundamental and applies to every crate owner — artist, DJ,
+or label alike. (ADR 0006 §4; refines ADR 0003.)
 
-- **R-AC-1** — Listen metering is server-enforced. Audio requests pass an
-  identity-aware counter (forwardAuth into crate-auth + Redis); the client is
-  never trusted to count.
-- **R-AC-2** — Offline download (PWA cache) is the paid unlock — disabled in
-  preview, enabled in full. This also closes the metering hole where cached plays
-  never reach the server.
-- **R-AC-3** — Tier limits (quota size, window, quality) are configurable per node
-  in `config`.
+| Tier | Entry | Access | Metering |
+|---|---|---|---|
+| **Radio** | Visit digitally from outside the network | Non-interactive, public, broadcast-like; per-owner (artist/label/DJ radio); unmetered | None — cheapest to serve |
+| **Member** | Scan a **beacon** (an NFC tag type) in person | On-demand: pick, search, queue within the crate | Rolling 30-day quota (~25 streams; see R-AC-4) |
+| **Owner** | Buy a **keychain** (an NFC tag type) | Full access to whatever the crate owner defines; unlimited; offline; perks | None |
+| **Abuse** | — | Decoy 502 | — |
+
+Keychain scope is owner-defined and arbitrary: a single project run, a full
+discography, a DJ's mixes, a DJ's private collection, a special edition.
+
+- **R-AC-1** — Listen metering is server-enforced on the member tier. Audio
+  requests pass an identity-aware counter (forwardAuth into crate-auth + Redis);
+  the client is never trusted to count. Radio and owner tiers are unmetered.
+- **R-AC-2** — Offline download (PWA cache) is the owner-tier unlock — disabled
+  for radio and member, enabled for owner. This also closes the metering hole
+  where cached plays never reach the server.
+- **R-AC-3** — Tier limits (quota size, window, quality) are configurable per
+  node in `config`.
 - **R-AC-4** — **[Decision Q1]** Metering unit is a **rolling 30-day window** of
-  streams (default ~25). A stream counts only after ~45s of playback, so skips and
-  brief samples are free. Browse is always unlimited. Rationale: a rolling window
-  matches the familiar streaming mental model, creates recurring conversion
-  pressure, and avoids per-track state and big-catalog penalties.
+  streams (default ~25), applied to member on-demand only. A stream counts only
+  after ~45s of playback, so skips and brief samples are free. Browse is always
+  unlimited. Rationale: a rolling window matches the familiar streaming mental
+  model, creates recurring conversion pressure, and avoids per-track state and
+  big-catalog penalties.
 
 ### 8.3 Data layer (storage)
 
@@ -315,8 +357,8 @@ custodied in mycelium.
   listing endorsed peer nodes (the vouch graph). Signatures are verifiable via
   mycelium.
 - **R-DISC-2** — Labels crawl vouch graphs into a discovery index.
-- **R-DISC-3** — Discovery is artist-curated, not algorithmic. A fan on node A
-  sees A's endorsements of B and C and can sample them under the preview tier.
+- **R-DISC-3** — Discovery is participant-curated, not algorithmic. A fan on node
+  A sees A's endorsements of B and C and can sample them under the radio tier.
 - **R-DISC-4** — Federation identity is rooted in mycelium (key-rooted), making
   cross-host follows/entitlements migration-safe. ActivityPub is an optional
   future external bridge, not the foundation.
@@ -342,10 +384,11 @@ custodied in mycelium.
 
 - **R-UI-1** — Retain the existing branded PWA (queue, search, favorites, media
   session, deep links, offline cache, responsive).
-- **R-UI-2** — Surface tier state (preview vs full), listen quota remaining, and
-  the upgrade-via-tag path.
+- **R-UI-2** — Surface tier state (radio / member / owner), listen quota
+  remaining (member tier), and the upgrade-via-tag path (beacon → member;
+  keychain → owner).
 - **R-UI-3** — Surface the vouch graph as in-app discovery of neighboring nodes.
-- **R-UI-4** — Offline download UI gated by full-tier entitlement.
+- **R-UI-4** — Offline download UI gated by owner-tier entitlement.
 
 ---
 
@@ -357,8 +400,9 @@ custodied in mycelium.
 - **mycelium proof-of-tap** provides unforgeable NFC taps (cryptographic
   authenticity) and anti-replay (tap counter). Cloning is cryptographically hard,
   not merely inconvenient. The underlying tag technology is mycelium's concern.
-- **Graduated trust:** preview sessions are low-privilege; full sessions require a
-  verified tap-derived entitlement token.
+- **Graduated trust:** radio sessions are low-privilege; member sessions require a
+  verified beacon tap-derived token; owner sessions require a verified keychain
+  tap-derived entitlement token.
 - **Storage isolation:** the host never holds the only copy of masters; the cache
   is derived and revocable. OAuth tokens are sealed via mycelium; optional rclone
   crypt hides the catalog from the cloud provider.
@@ -398,8 +442,9 @@ OAuth proof-of-tap stub, NFS catalog. *(Exists on `feat/k3s-mycelium-oauth`.)*
 **Phase 2 — Real proof-of-tap + tiers.**
 - NFC proof-of-tap verification wired into crate-auth via mycelium,
   minting signed entitlement tokens verified at the edge.
-- Graduated sessions (preview/full) + server-side rolling-window metering (Redis).
-- Offline download gated to full tier.
+- Graduated sessions (radio / member / owner) + server-side rolling-window
+  metering on member on-demand (Redis).
+- Offline download gated to owner tier.
 
 **Phase 3 — Sovereignty spine.**
 - mycelium key custody + entitlement authority that travels with the artist.
@@ -423,7 +468,8 @@ OAuth proof-of-tap stub, NFS catalog. *(Exists on `feat/k3s-mycelium-oauth`.)*
   entitlements and no prior-host cooperation. (Binary; must pass.)
 - **Onboarding:** non-technical artist goes from zero to a live, branded,
   streamable crate in under 15 minutes without touching a terminal.
-- **Funnel:** preview → tag-purchase conversion rate per node.
+- **Funnel:** radio → member (beacon tap) → owner (keychain purchase) conversion
+  rate per node.
 - **Network effect:** share of new fans arriving via a peer node's vouch graph.
 - **Operability:** a label can stand up a new artist node in minutes; per-node
   cost stays within target.
@@ -435,7 +481,7 @@ OAuth proof-of-tap stub, NFS catalog. *(Exists on `feat/k3s-mycelium-oauth`.)*
 | # | Question | Decision | Key remaining knob |
 |---|---|---|---|
 | **Q1** | Metering unit | Rolling 30-day window, ~25 streams; counts after ~45s; browse unlimited | Exact quota size and count threshold, tuned per conversion data |
-| **Q2** | Tap verification interface | mycelium verifies once → signed entitlement token; edge verifies vs JWKS offline; full-tier TTL ~24h w/ silent refresh | Revocation-list vs TTL-only; refresh cadence |
+| **Q2** | Tap verification interface | mycelium verifies once → signed entitlement token; edge verifies vs JWKS offline; owner-tier TTL ~24h w/ silent refresh | Revocation-list vs TTL-only; refresh cadence |
 | **Q3** | Sync mode + eviction | Lazy VFS + read-ahead default; LRU under size cap; manifest/artwork pinned; full-mirror opt-in | Per-node cache cap sizing |
 | **Q4** | Claim model | Bearer always for access (no account on first tap); claim is explicit, optional, perks-only | One-way vs re-transferable claim, per artist policy |
 | **Q5** | Storefront ownership | First-party commerce primitive (artist's own processor) + label storefront over one entitlement API | Which payment processor(s) for the first-party path |

@@ -1,0 +1,13 @@
+# Ignore generated catalog content — media and manifest are never committed.
+# The directory structure (audio/, artwork/) is tracked via .gitkeep files.
+
+# Audio files
+audio/*
+!audio/.gitkeep
+
+# Artwork files
+artwork/*
+!artwork/.gitkeep
+
+# Generated manifest
+manifest.json

@@ -242,7 +242,9 @@ data-plane; the host keeps nothing it cannot rebuild.
 
 ## Where to start
 
-The critical path is **M0 → M1 → M2 → M3**, with **SK-0** (a throwaway walking
+compose is the canonical runtime and is **available now** (`docker compose up` for
+laptop/Docker Desktop; `--profile gated` for the full Traefik+crate-auth stack);
+k8s is the parallel form. The critical path is **M0 → M1 → M2 → M3**, with **SK-0** (a throwaway walking
 skeleton) proving the sovereignty thesis — migrate a trivial node host A→B with
 one entitlement intact — before the full stack is built. mycelium (MYC track) is an **external, loose-coupled** trust fabric Crate
 integrates with as an OAuth2 relying party (ADR 0004); the moat Crate **owns** is

@@ -23,7 +23,7 @@ See ADR 0004.
 
 | Epic | Deliverable | PRD |
 |---|---|---|
-| MYC-1 | crate-auth as **OAuth2 relying party** to mycelium proof-of-tap (`/links` tap → `/oauth/token` → JWT verified vs JWKS); identity = OIDC sub (claimed) or tag session (bearer) (ADR 0004) | R-ID-3a |
+| MYC-1 | crate-auth as **generic OAuth2/OIDC relying party** — mycelium is one provider (tap-initiated, ES256); OIDC discovery, ES256+RS256, state+PKCE for standard IdPs (ADR 0004/0005). **Partially shipped (PR #17).** | R-ID-3a |
 | MYC-2 | **Crate-side** entitlement authority + ledger (resolves tag→membrane+catalog; portable in control-plane) (ADR 0004) | R-ID-6 |
 | MYC-3 | Tag-info resolution: read tag → collection / collection-group from mycelium (optional GET) to drive resolution (ADR 0004) | R-ID-4 |
 | MYC-4 | Storage-OAuth refresh-token sealing (Crate control-plane; R-DL-7) | R-DL-7 |
@@ -155,6 +155,13 @@ DIST-1 (compose) lands early in M1 and underpins M1+; DIST-2/3 gate the §12 onb
 canonical form sharing the same container images; appliance (Crate OS, Pi /
 old-PC) and cloud one-click are thin wrappers over compose. DIST-1 (compose)
 lands in early M1. See track DIST.
+
+### Q-AUTH-PROVIDER — Pluggable auth provider  (ADR 0005, RESOLVED — implemented)
+crate-auth is a **generic OAuth2/OIDC client**; mycelium is one provider profile.
+OIDC discovery (`.well-known/openid-configuration`), ES256+RS256 (mycelium stays
+ES256), `state`+PKCE for browser-initiated IdPs, tap-initiated default preserved.
+Shipped in PR #17. mycelium publishing a discovery doc is an optional follow-up,
+not required. See `docs/adr/0005-pluggable-auth-provider.md`.
 
 ### Q-MYC-BOUNDARY — Crate ↔ mycelium integration  (ADR 0004, RESOLVED)
 **Loose coupling.** mycelium (existing platform) = tag authenticity + identity

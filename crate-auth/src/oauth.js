@@ -1,15 +1,24 @@
-// OAuth2 token exchange against mycelium.
+// OAuth2 token exchange.
 //
 // Confirmed from mycelium oauth/handlers.go ExchangeToken:
-//   POST <MYCELIUM_TOKEN_URL>  (application/x-www-form-urlencoded)
+//   POST <token_url>  (application/x-www-form-urlencoded)
 //   fields: grant_type=authorization_code, code, client_id, client_secret,
-//           redirect_uri
+//           redirect_uri, [code_verifier for PKCE]
 //   client auth: client_secret_post (credentials in the form body, NOT Basic).
 //   success response (200): { access_token, token_type: "Bearer", expires_in }
-//   the access_token is an ES256 JWT (proof-of-tap) with aud=client_id.
+//   the access_token is a JWT (ES256 for mycelium, RS256 for some OIDC providers)
 
 /**
- * Exchange an authorization code for a mycelium access token (JWT).
+ * Exchange an authorization code for an access token (JWT).
+ *
+ * @param {object} opts
+ * @param {string}    opts.tokenUrl
+ * @param {string}    opts.code
+ * @param {string}    opts.clientId
+ * @param {string}    opts.clientSecret
+ * @param {string}    [opts.redirectUri]
+ * @param {string}    [opts.codeVerifier] - PKCE code_verifier (standard mode)
+ * @param {function}  [opts.fetchImpl=fetch]
  * @returns {Promise<{ok: boolean, accessToken?: string, status?: number, error?: string}>}
  */
 export async function exchangeCode({
@@ -18,6 +27,7 @@ export async function exchangeCode({
   clientId,
   clientSecret,
   redirectUri,
+  codeVerifier,
   fetchImpl = fetch,
 }) {
   const form = new URLSearchParams({
@@ -27,6 +37,8 @@ export async function exchangeCode({
     client_secret: clientSecret,
   });
   if (redirectUri) form.set('redirect_uri', redirectUri);
+  // PKCE: include code_verifier when provided (standard mode).
+  if (codeVerifier) form.set('code_verifier', codeVerifier);
 
   let res;
   try {

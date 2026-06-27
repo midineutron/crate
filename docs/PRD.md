@@ -16,7 +16,7 @@ own. Nodes can be self-hosted or operated on the artist's behalf by a **label**,
 but the artist holds the root of trust the entire time: their identity, their
 keys, and their masters never belong to the host.
 
-Access to a node is gated by physical **NTAG424 DNA NFC tags** the artist sells.
+Access to a node is gated by physical **NFC tags** the artist sells.
 Anyone can land on a node and sample it under a metered preview tier; owning the
 artist's tag unlocks full access, including offline ownership. Nodes advertise
 peer nodes through a signed, artist-curated graph, so discovery spreads by
@@ -55,7 +55,7 @@ capture.
 - **G2 — Plug-and-play for non-technical artists.** Onboarding is "connect your
   cloud drive, drop in your music, name your crate." No CLI, no S3, no manifest
   editing.
-- **G3 — Physical-good access economy.** NTAG424 tags act as cryptographically
+- **G3 — Physical-good access economy.** NFC tags act as cryptographically
   unforgeable keys to a node. Selling a tag sells access (and optionally
   ownership/perks).
 - **G4 — Graduated access funnel.** Strangers can browse and sample under a
@@ -117,7 +117,7 @@ capture.
 | **Crate / Node** | One artist's independent streaming instance. The unit of deployment. |
 | **Label** | An operator hosting many nodes + the discovery index + NFC commerce. |
 | **mycelium** | The artist's portable root of trust: sovereign identity, key custody, entitlement authority. Travels with the artist, not the host. |
-| **Proof-of-tap** | A cryptographically verified NTAG424 SDM tap that mints or upgrades a session. |
+| **Proof-of-tap** | A cryptographically verified NFC tap — authenticity and anti-replay handled by mycelium — that mints or upgrades a session. |
 | **Control-plane** | The crate's portable soul: identity refs, manifest, entitlement ledger, config, vouch graph. Small, artist-held. |
 | **Data-plane** | The heavy audio masters in artist-controlled storage, referenced by the manifest, cached by the host. |
 | **crate.bundle** | The portable package format that moves a node between hosts. |
@@ -132,7 +132,7 @@ capture.
 
 | Layer | Implementation | Build vs borrow |
 |---|---|---|
-| **Identity / access / entitlement** | mycelium (sovereign identity, NTAG424 key custody, tap verification, entitlement authority) | **Build / own** — the moat |
+| **Identity / access / entitlement** | mycelium (sovereign identity, NFC tag key custody, tap verification, entitlement authority) | **Build / own** — the moat |
 | **Presentation** | Crate PWA (branded streaming app, offline cache, media session) | **Build / own** — the moat |
 | **Catalog / library** | Navidrome per node (Subsonic API, transcoding, metadata, search) | **Borrow** |
 | **Data (masters)** | Artist-controlled storage via rclone (Drive, Dropbox, S3, NAS) → host serving cache | **Borrow / abstract** |
@@ -142,7 +142,7 @@ capture.
 ### 7.2 Request flow (per node)
 
 ```
-                    NTAG424 tap (SUN/SDM URL: UID + counter + CMAC)
+                    NFC tap (mycelium proof-of-tap: authenticity + anti-replay)
                                    │
                                    ▼
                             ┌────────────┐  verify tap once → signed entitlement token
@@ -181,7 +181,7 @@ My Drive/
     └── config          # branding, tiers, listen limits
 ```
 
-Secrets (NTAG424 master key, signing identity) never live here — they are
+Secrets (NFC tag keys, signing identity) never live here — they are
 custodied in mycelium.
 
 ---
@@ -190,11 +190,12 @@ custodied in mycelium.
 
 ### 8.1 Identity, access, and entitlement (mycelium)
 
-- **R-ID-1** — mycelium custodies, per artist: a signing identity and an NTAG424
-  master key. The host runtime never receives these.
-- **R-ID-2** — NTAG424 tags are provisioned with per-tag keys diversified from the
-  artist master key by UID.
-- **R-ID-3** — crate-auth verifies each tap's SDM CMAC and monotonic counter by
+- **R-ID-1** — mycelium custodies, per artist, the cryptographic key material for
+  their NFC tags (plus the tap-signing identity). The host runtime never receives
+  these. The specific tag technology is mycelium's concern, not Crate's.
+- **R-ID-2** — NFC tags are provisioned by mycelium with per-tag key material so
+  each tap is uniquely verifiable; provisioning specifics are mycelium's concern.
+- **R-ID-3** — crate-auth verifies each tap's authenticity and anti-replay by
   delegating to mycelium; mycelium returns an entitlement decision
   (`preview | full` + perks), never the key.
 - **R-ID-3a** — **[Decision Q2]** mycelium verifies a tap **once** and mints a
@@ -215,7 +216,7 @@ custodied in mycelium.
 | Tier | Browse | Listens | Quality | Offline | Trigger |
 |---|---|---|---|---|---|
 | **Preview** | Full | Rolling 30-day quota (~25 streams) | Stream-only | No | Default for any visitor |
-| **Full** | Full | Unlimited | Full | **Yes** | Owns the node's NTAG424 tag |
+| **Full** | Full | Unlimited | Full | **Yes** | Owns the node's NFC tag |
 | **Abuse** | — | — | — | — | Decoy 502 |
 
 - **R-AC-1** — Listen metering is server-enforced. Audio requests pass an
@@ -314,7 +315,7 @@ custodied in mycelium.
   for cross-device offline, presence history, and fan perks. The artist sets
   whether a claim is one-way or re-transferable.
 - **R-COM-3** — Tap mechanics beyond access (presence-at-show, counter milestones,
-  tap-gated drops) are supported by the per-tap SDM event model.
+  tap-gated drops) are supported by mycelium's per-tap event model.
 - **R-COM-4** — **[Decision Q5]** A **first-party commerce primitive** lets a solo
   artist sell tags without a label, using the artist's own payment processor; it
   provisions the tag and records the entitlement in mycelium. **Label storefronts**
@@ -334,12 +335,12 @@ custodied in mycelium.
 
 ## 9. Security model
 
-- **Key custody is the load-bearing wall.** The NTAG424 master key and crate
-  signing key live only in mycelium. If they leak to the host, sovereignty
+- **Key custody is the load-bearing wall.** The NFC tag keys and tap-signing
+  identity live only in mycelium. If they leak to the host, sovereignty
   collapses. Verification returns decisions and signed tokens, never keys.
-- **NTAG424 SDM** provides unforgeable taps (AES-128 CMAC) and anti-replay
-  (monotonic counter). Cloning is cryptographically hard, not merely
-  inconvenient.
+- **mycelium proof-of-tap** provides unforgeable NFC taps (cryptographic
+  authenticity) and anti-replay (tap counter). Cloning is cryptographically hard,
+  not merely inconvenient. The underlying tag technology is mycelium's concern.
 - **Graduated trust:** preview sessions are low-privilege; full sessions require a
   verified tap-derived entitlement token.
 - **Storage isolation:** the host never holds the only copy of masters; the cache
@@ -379,7 +380,7 @@ OAuth proof-of-tap stub, NFS catalog. *(Exists on `feat/k3s-mycelium-oauth`.)*
 - "Crate is a folder" onboarding: connect, drop, auto-manifest.
 
 **Phase 2 — Real proof-of-tap + tiers.**
-- NTAG424 SDM verification (CMAC + counter) wired into crate-auth via mycelium,
+- NFC proof-of-tap verification wired into crate-auth via mycelium,
   minting signed entitlement tokens verified at the edge.
 - Graduated sessions (preview/full) + server-side rolling-window metering (Redis).
 - Offline download gated to full tier.

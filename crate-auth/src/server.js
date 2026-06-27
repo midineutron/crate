@@ -1,22 +1,38 @@
-// crate-auth: mycelium OAuth front door + self-signed session minter.
+// crate-auth: generic OAuth2/OIDC front door + self-signed session minter.
 //
 // Endpoints (see .claude/swarm/contract.md):
+//   GET  /auth/login              Redirect to authorization_endpoint (standard mode only)
 //   GET  /auth/callback?code=...  exchange code -> verify JWT -> set session -> 302 /
 //   GET  /auth/verify             forwardAuth target: 200 if session else 401 + decoy
 //   POST /auth/konami             validate sequence -> set session -> 200
 //   GET  /auth/logout             clear cookie -> 302 /
 //   GET  /health                  200 (bypasses forwardAuth)
+//
+// AUTH_FLOW_MODE:
+//   "tap-initiated" (default): mycelium behavior preserved; no state/PKCE required.
+//   "standard": /auth/login initiation; state + PKCE enforced on callback.
 
 import http from 'node:http';
-import { config, assertConfig } from './config.js';
+import { config, assertConfig, applyDiscovery } from './config.js';
 import { signSession, verifySession } from './session.js';
 import { matchKonami } from './konami.js';
-import { verifyMyceliumJwt } from './jwks.js';
+import { verifyJwt, verifyMyceliumJwt } from './jwks.js';
 import { exchangeCode } from './oauth.js';
 import { decoyHtml } from './decoy.js';
 import { parseCookies, buildSetCookie, buildClearCookie } from './cookies.js';
+import { fetchDiscovery } from './discovery.js';
+import {
+  generateState,
+  generateCodeVerifier,
+  deriveCodeChallenge,
+  safeEqual,
+  signStateCookie,
+  verifyStateCookie,
+} from './pkce.js';
 
 const SESSION_MAX_AGE = () => Math.round(config.sessionTtlDays * 24 * 60 * 60);
+// State cookie is short-lived: 10 minutes.
+const STATE_MAX_AGE = 600;
 
 function log(...args) {
   // eslint-disable-next-line no-console
@@ -73,6 +89,48 @@ async function readBody(req, limitBytes = 64 * 1024) {
 
 // --- Route handlers ---------------------------------------------------------
 
+/**
+ * GET /auth/login — initiate authorization_code flow (standard mode only).
+ * Generates state + PKCE, stores them in a signed short-lived cookie,
+ * then redirects to the provider's authorization_endpoint.
+ */
+function handleLogin(req, res) {
+  if (!config.authorizeUrl) {
+    log('login: no authorizeUrl configured (tap-initiated mode?)');
+    return sendDecoy(res);
+  }
+
+  const state = generateState();
+  const codeVerifier = generateCodeVerifier();
+  const codeChallenge = deriveCodeChallenge(codeVerifier);
+
+  const stateCookieValue = signStateCookie({
+    state,
+    codeVerifier,
+    hmacKey: config.sessionHmacKey,
+  });
+
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id: config.clientId,
+    redirect_uri: config.redirectUri,
+    scope: config.oauthScopes,
+    state,
+    code_challenge: codeChallenge,
+    code_challenge_method: 'S256',
+  });
+
+  const location = `${config.authorizeUrl}?${params.toString()}`;
+
+  res.writeHead(302, {
+    Location: location,
+    'Set-Cookie': buildSetCookie(config.stateCookieName, stateCookieValue, {
+      maxAgeSeconds: STATE_MAX_AGE,
+    }),
+  });
+  res.end();
+}
+
 async function handleCallback(req, res, url) {
   const code = url.searchParams.get('code');
   if (!code) {
@@ -80,23 +138,54 @@ async function handleCallback(req, res, url) {
     return sendDecoy(res);
   }
 
+  let codeVerifier;
+
+  if (config.authFlowMode === 'standard') {
+    // Standard mode: require and validate state.
+    const returnedState = url.searchParams.get('state');
+    if (!returnedState) {
+      log('callback: missing state (standard mode)');
+      return sendDecoy(res);
+    }
+
+    const cookies = parseCookies(req.headers.cookie);
+    const stateCookieRaw = cookies[config.stateCookieName];
+    const stateResult = verifyStateCookie(stateCookieRaw, config.sessionHmacKey);
+
+    if (!stateResult.valid) {
+      log('callback: invalid state cookie:', stateResult.reason);
+      return sendDecoy(res);
+    }
+
+    // Constant-time state comparison.
+    if (!safeEqual(returnedState, stateResult.state)) {
+      log('callback: state mismatch');
+      return sendDecoy(res);
+    }
+
+    codeVerifier = stateResult.codeVerifier;
+  }
+  // tap-initiated mode: skip state/PKCE checks entirely (current behavior).
+
   const exchange = await exchangeCode({
     tokenUrl: config.tokenUrl,
     code,
     clientId: config.clientId,
     clientSecret: config.clientSecret,
     redirectUri: config.redirectUri,
+    codeVerifier, // undefined in tap-initiated mode
   });
   if (!exchange.ok) {
     log('callback: token exchange failed:', exchange.error);
     return sendDecoy(res);
   }
 
-  const verdict = await verifyMyceliumJwt(exchange.accessToken, {
+  const verdict = await verifyJwt(exchange.accessToken, {
     jwksUrl: config.jwksUrl,
     fallbackTtlSeconds: config.jwksCacheTtlSeconds,
-    expectedIssuer: config.jwtIssuer,
+    expectedIssuer: config.oidcIssuer || config.jwtIssuer,
     expectedAudience: config.clientId,
+    allowedAlgs: config.allowedAlgs,
   });
   if (!verdict.valid) {
     log('callback: JWT validation failed:', verdict.reason);
@@ -105,9 +194,17 @@ async function handleCallback(req, res, url) {
 
   const subject = verdict.claims.sub || verdict.claims.session_id || 'crate';
   log('callback: session granted for', subject);
-  return redirect(res, config.appOrigin || '/', {
-    'Set-Cookie': sessionCookieHeader(subject),
-  });
+
+  const extraHeaders = { 'Set-Cookie': sessionCookieHeader(subject) };
+  // Clear the state cookie after successful auth (standard mode).
+  if (config.authFlowMode === 'standard') {
+    extraHeaders['Set-Cookie'] = [
+      sessionCookieHeader(subject),
+      buildClearCookie(config.stateCookieName),
+    ];
+  }
+
+  return redirect(res, config.appOrigin || '/', extraHeaders);
 }
 
 function handleVerify(req, res) {
@@ -175,6 +272,9 @@ export async function route(req, res) {
       res.end('ok');
       return;
     }
+    if (pathname === '/auth/login' && method === 'GET') {
+      return handleLogin(req, res);
+    }
     if (pathname === '/auth/callback' && method === 'GET') {
       return await handleCallback(req, res, url);
     }
@@ -210,8 +310,24 @@ export function createServer() {
 const isMain = import.meta.url === `file://${process.argv[1]}`;
 if (isMain) {
   assertConfig();
-  const server = createServer();
-  server.listen(config.port, () => {
-    log(`listening on :${config.port}`);
+  // Attempt OIDC discovery at boot; apply results to config before serving.
+  const bootDiscovery = config.oidcIssuer
+    ? fetchDiscovery(config.oidcIssuer).then((doc) => {
+        if (doc) {
+          applyDiscovery(doc);
+          log('OIDC discovery applied from', config.oidcIssuer);
+        } else {
+          log('OIDC discovery unavailable; using explicit/alias endpoints');
+        }
+      }).catch((err) => {
+        log('OIDC discovery error (non-fatal):', err.message);
+      })
+    : Promise.resolve();
+
+  bootDiscovery.then(() => {
+    const server = createServer();
+    server.listen(config.port, () => {
+      log(`listening on :${config.port} (mode=${config.authFlowMode})`);
+    });
   });
 }

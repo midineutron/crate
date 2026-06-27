@@ -1,12 +1,15 @@
-// JWKS fetching/caching and mycelium JWT verification.
+// JWKS fetching/caching and JWT verification.
+//
+// Supports ES256 (EC P-256, IEEE-P1363 R||S) and RS256 (RSA PKCS#1v1.5).
+// Algorithm is determined from the JWK kty field and validated against the
+// OAUTH_ALLOWED_ALGS allowlist (default: ES256,RS256).
 //
 // mycelium signs proof-of-tap JWTs with ES256 (EC P-256) and publishes its
 // public keys at /.well-known/jwks.json. Each JWK is of the form:
 //   { kty: "EC", crv: "P-256", kid, use: "sig", alg: "ES256", x, y }
 // The JWT header carries the matching `kid`.
 //
-// JWT signatures (ES256) are the raw IEEE-P1363 R||S concatenation, so we ask
-// Node's verifier for dsaEncoding 'ieee-p1363'.
+// RS256 JWKs: { kty: "RSA", kid, use: "sig", alg: "RS256", n, e, ... }
 
 import crypto from 'node:crypto';
 
@@ -62,14 +65,71 @@ export function _resetCache() {
 }
 
 /**
- * Verify a mycelium JWT: ES256 signature against JWKS, plus iss/aud/exp/nbf.
+ * Determine the algorithm name from a JWK.
+ * - kty=EC, crv=P-256 -> ES256
+ * - kty=RSA            -> RS256
+ * Explicit `alg` field on the JWK takes precedence if present.
+ */
+function algFromJwk(jwk) {
+  if (jwk.alg) return jwk.alg;
+  if (jwk.kty === 'EC') return 'ES256';
+  if (jwk.kty === 'RSA') return 'RS256';
+  return null;
+}
+
+/**
+ * Verify a JWT signature using the appropriate algorithm based on the JWK kty.
+ * ES256: EC P-256, IEEE-P1363 raw R||S signature.
+ * RS256: RSA PKCS#1 v1.5 SHA-256 (DER-encoded).
+ */
+function verifySignature(signingInput, signatureB64url, jwk) {
+  const keyObject = crypto.createPublicKey({ key: jwk, format: 'jwk' });
+  const signature = Buffer.from(signatureB64url, 'base64url');
+  const data = Buffer.from(signingInput);
+
+  const alg = algFromJwk(jwk);
+
+  if (alg === 'ES256') {
+    return crypto.verify(
+      'sha256',
+      data,
+      { key: keyObject, dsaEncoding: 'ieee-p1363' },
+      signature,
+    );
+  }
+
+  if (alg === 'RS256') {
+    return crypto.verify(
+      'sha256',
+      data,
+      { key: keyObject },
+      signature,
+    );
+  }
+
+  throw new Error(`unsupported_alg:${alg}`);
+}
+
+/**
+ * Verify a JWT: signature against JWKS, plus iss/aud/exp/nbf.
+ *
+ * @param {string} token
+ * @param {object} opts
+ * @param {string}   opts.jwksUrl
+ * @param {number}   [opts.fallbackTtlSeconds=3600]
+ * @param {string}   [opts.expectedIssuer]
+ * @param {string}   [opts.expectedAudience]
+ * @param {string[]} [opts.allowedAlgs=['ES256','RS256']]
+ * @param {function} [opts.fetchImpl=fetch]
+ * @param {number}   [opts.now] - unix seconds override (for tests)
  * @returns {Promise<{valid: boolean, claims?: object, reason?: string}>}
  */
-export async function verifyMyceliumJwt(token, {
+export async function verifyJwt(token, {
   jwksUrl,
   fallbackTtlSeconds = 3600,
   expectedIssuer,
   expectedAudience,
+  allowedAlgs = ['ES256', 'RS256'],
   fetchImpl = fetch,
   now,
 } = {}) {
@@ -88,7 +148,10 @@ export async function verifyMyceliumJwt(token, {
     return { valid: false, reason: 'bad_encoding' };
   }
 
-  if (header.alg !== 'ES256') return { valid: false, reason: 'bad_alg' };
+  // Check algorithm against allowlist (header.alg).
+  if (!allowedAlgs.includes(header.alg)) {
+    return { valid: false, reason: 'bad_alg' };
+  }
   if (!header.kid) return { valid: false, reason: 'no_kid' };
 
   let jwk;
@@ -99,17 +162,16 @@ export async function verifyMyceliumJwt(token, {
   }
   if (!jwk) return { valid: false, reason: 'unknown_kid' };
 
+  // Cross-check: JWK alg must also be in the allowlist.
+  const jwkAlg = algFromJwk(jwk);
+  if (jwkAlg && !allowedAlgs.includes(jwkAlg)) {
+    return { valid: false, reason: 'bad_alg' };
+  }
+
   let ok = false;
   try {
-    const keyObject = crypto.createPublicKey({ key: jwk, format: 'jwk' });
     const signingInput = `${parts[0]}.${parts[1]}`;
-    const signature = Buffer.from(parts[2], 'base64url');
-    ok = crypto.verify(
-      'sha256',
-      Buffer.from(signingInput),
-      { key: keyObject, dsaEncoding: 'ieee-p1363' },
-      signature,
-    );
+    ok = verifySignature(signingInput, parts[2], jwk);
   } catch (err) {
     return { valid: false, reason: `verify_error:${err.message}` };
   }
@@ -134,4 +196,14 @@ export async function verifyMyceliumJwt(token, {
   }
 
   return { valid: true, claims };
+}
+
+/**
+ * Back-compat alias: verifyMyceliumJwt -> verifyJwt.
+ * Existing callers (server.js, tests) continue to work unchanged.
+ */
+export async function verifyMyceliumJwt(token, opts) {
+  // In tap-initiated / mycelium mode, ES256 is the expected alg.
+  // The alias passes through; allowedAlgs defaults to ES256,RS256.
+  return verifyJwt(token, opts);
 }

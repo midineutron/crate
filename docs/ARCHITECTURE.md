@@ -200,6 +200,7 @@ data-plane; the host keeps nothing it cannot rebuild.
 | **0002** | **Universal listener identity** + roles; **content-addressed tracks**; Crate-side entitlement authority; metering at that authority; **pull replication via signed grants** | DJ mixes-by-reference and a distribution mesh that scale **without** moving authority off the origin | MYC-1, E1.6, E2.3, E3.1 |
 | **0003** | **Access membranes**: radio / member / owner; **beacon** (presence, many scan) vs **keychain** (ownership, individual) | Makes "you had to show up" real; aligns cheapest-to-serve tier with the free public tier | E2.1–E2.5, E4.3, E4.4 |
 | **0004** | **Crate ↔ mycelium = loose coupling.** mycelium (existing platform) proves tag authenticity + identity; **Crate owns resolution + entitlement** (portable control-plane). Single global mycelium issuer; per-artist signing is Crate-side; no content keys; radio host-only | An external trust fabric Crate isn't deeply coupled to; sovereignty via Crate's portable ledger | MYC-1/2/3/5, E2.1, E4.3 |
+| **0005** | **Pluggable auth** — crate-auth is a generic OAuth2/OIDC client; mycelium is one provider (tap-initiated, ES256); discovery + ES256/RS256 + state/PKCE | Crate runs against any IdP; mycelium not the necessary center for auth | crate-auth (PR #17), MYC-1 |
 | *(DIST)* | **compose canonical**, k8s parallel, appliance/cloud wrap compose | One software, four operator tiers (PRD G6) | DIST-1 in early M1 |
 
 ## How it all fits: the funnel

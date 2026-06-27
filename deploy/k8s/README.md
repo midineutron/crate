@@ -28,14 +28,17 @@ ignoring cookies, which would serve media past the forwardAuth gate.
 
 - k3s with its default **Traefik** ingress (`web` entrypoint, :80)
 - An in-cluster **cloudflared** tunnel for `crates.mycelium-network.io`
-- **mycelium** already running in-cluster (service `backend.mycelium`, :8080)
+- **mycelium** reachable at its **public** URL (an external service; this node
+  does not need mycelium in the same cluster). Set `OAUTH_TOKEN_URL` /
+  `OAUTH_JWKS_URL` to that public host.
 - A **Synology NAS** NFS export holding the catalog
 - Images published (public): `ghcr.io/midineutron/crate` and `ghcr.io/midineutron/crate-auth`
 
 ## Placeholders to replace
 
-Host and mycelium URLs are already filled in (`crates.mycelium-network.io`,
-`backend.mycelium.svc.cluster.local:8080`). Only the NAS values remain:
+The host is filled in (`crates.mycelium-network.io`). Set the provider URLs
+(`OAUTH_TOKEN_URL` / `OAUTH_JWKS_URL`) to mycelium's **public** host — not an
+in-cluster address — then fill the NAS values:
 
 | Placeholder | Meaning | Example |
 |-------------|---------|---------|

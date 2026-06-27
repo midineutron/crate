@@ -1,8 +1,13 @@
 # Non-secret crate-auth configuration.
 #
-# Filled in for this deployment:
+# A crate node is a relying party of an EXTERNAL auth provider (mycelium, or any
+# OAuth2/OIDC IdP). It does NOT assume the provider is co-located in the same
+# cluster. Provider endpoints are therefore PUBLIC URLs, never in-cluster service
+# DNS (no *.svc.cluster.local). See docs/adr/0004.
+#
+# Fill in for this deployment:
 #   host          crates.mycelium-network.io  (fronted by Cloudflare Tunnel)
-#   mycelium      service "backend" in namespace "mycelium", port 8080
+#   provider      mycelium's PUBLIC base URL  (set OAUTH_* below)
 #   JWT_ISSUER    left blank -> iss is not checked (audience is still checked
 #                 against OAUTH_CLIENT_ID). To tighten, set this to the `iss`
 #                 mycelium mints (its JWT_ISSUER env; default "mycelium").
@@ -12,10 +17,15 @@ metadata:
   name: crate-auth-config
   namespace: crate
 data:
-  MYCELIUM_TOKEN_URL: "http://backend.mycelium.svc.cluster.local:8080/oauth/token"
-  MYCELIUM_JWKS_URL: "http://backend.mycelium.svc.cluster.local:8080/.well-known/jwks.json"
+  # External provider endpoints — PUBLIC URLs reachable from wherever this node
+  # runs. Replace <mycelium-public-host> with mycelium's public API host
+  # (the same base used by tools/register-mycelium.sh, e.g.
+  # https://api.mycelium.example.com). MUST NOT be a *.svc.cluster.local address.
+  # (Legacy MYCELIUM_TOKEN_URL / MYCELIUM_JWKS_URL names are still accepted.)
+  OAUTH_TOKEN_URL: "https://<mycelium-public-host>/oauth/token"
+  OAUTH_JWKS_URL:  "https://<mycelium-public-host>/.well-known/jwks.json"
   REDIRECT_URI: "https://crates.mycelium-network.io/auth/callback"
-  APP_ORIGIN: "https://crates.mycelium-network.io"
+  APP_ORIGIN:   "https://crates.mycelium-network.io"
   JWT_ISSUER: ""
   SESSION_TTL_DAYS: "30"
   KONAMI_SEQUENCE: "up,up,down,down,left,right,left,right,b,a"

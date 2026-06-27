@@ -4,6 +4,7 @@
 //   GET  /auth/login              Redirect to authorization_endpoint (standard mode only)
 //   GET  /auth/callback?code=...  exchange code -> verify JWT -> set session -> 302 /
 //   GET  /auth/verify             forwardAuth target: 200 if session else 401 + decoy
+//                                 In AUTH_LOCAL_OPEN mode: always 200 (no session needed)
 //   POST /auth/konami             validate sequence -> set session -> 200
 //   GET  /auth/logout             clear cookie -> 302 /
 //   GET  /health                  200 (bypasses forwardAuth)
@@ -11,9 +12,15 @@
 // AUTH_FLOW_MODE:
 //   "tap-initiated" (default): mycelium behavior preserved; no state/PKCE required.
 //   "standard": /auth/login initiation; state + PKCE enforced on callback.
+//
+// AUTH_LOCAL_OPEN=true:
+//   Boot without provider credentials. /auth/verify always returns 200.
+//   SESSION_HMAC_KEY is auto-generated ephemerally if unset.
+//   FOR LOCAL DEVELOPMENT ONLY.
 
 import http from 'node:http';
-import { config, assertConfig, applyDiscovery } from './config.js';
+import crypto from 'node:crypto';
+import { config, assertConfig, applyDiscovery, localOpen } from './config.js';
 import { signSession, verifySession } from './session.js';
 import { matchKonami } from './konami.js';
 import { verifyJwt, verifyMyceliumJwt } from './jwks.js';
@@ -208,6 +215,13 @@ async function handleCallback(req, res, url) {
 }
 
 function handleVerify(req, res) {
+  // LOCAL OPEN MODE: grant access unconditionally for local dev.
+  if (localOpen) {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('ok');
+    return;
+  }
+
   const cookies = parseCookies(req.headers.cookie);
   const token = cookies[config.cookieName];
   const verdict = verifySession(token, { hmacKey: config.sessionHmacKey });
@@ -309,6 +323,16 @@ export function createServer() {
 // Boot when run directly (not when imported by tests).
 const isMain = import.meta.url === `file://${process.argv[1]}`;
 if (isMain) {
+  // LOCAL OPEN MODE: generate an ephemeral dev session key if SESSION_HMAC_KEY
+  // is not set. This allows the gated stack to function locally without any
+  // operator-provided secrets. Sessions are lost on restart (intended).
+  if (localOpen && !config.sessionHmacKey) {
+    config.sessionHmacKey = crypto.randomBytes(32).toString('hex');
+    log('WARNING: AUTH_LOCAL_OPEN=true and SESSION_HMAC_KEY is unset.');
+    log('WARNING: Generated an ephemeral dev session key — sessions will not');
+    log('WARNING: survive a container restart. Set SESSION_HMAC_KEY to persist.');
+  }
+
   assertConfig();
   // Attempt OIDC discovery at boot; apply results to config before serving.
   const bootDiscovery = config.oidcIssuer
@@ -327,7 +351,11 @@ if (isMain) {
   bootDiscovery.then(() => {
     const server = createServer();
     server.listen(config.port, () => {
-      log(`listening on :${config.port} (mode=${config.authFlowMode})`);
+      if (localOpen) {
+        log(`listening on :${config.port} (mode=local-open — ALL REQUESTS GRANTED)`);
+      } else {
+        log(`listening on :${config.port} (mode=${config.authFlowMode})`);
+      }
     });
   });
 }

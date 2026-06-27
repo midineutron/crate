@@ -1,0 +1,59 @@
+# Crate — local Docker Compose
+#
+# Two modes:
+#
+#   UNGATED (default, no profile):
+#     docker compose up
+#     Open http://localhost:8080 — crate-web served directly, no auth.
+#
+#   GATED (full forwardAuth topology, like production):
+#     docker compose --profile gated up
+#     Open http://localhost:8081 — Traefik -> forwardAuth -> crate-auth ->
+#     crate-web. crate-auth runs in AUTH_LOCAL_OPEN=true mode (no IdP needed).
+#
+# Port scheme:
+#   8080  direct crate-web (ungated)
+#   8081  Traefik entry (gated)   <- no clash when running both simultaneously
+#
+# Build context for crate-web is the REPO ROOT (matches crate-web/Dockerfile).
+
+services:
+  crate-web:
+    build:
+      context: .
+      dockerfile: crate-web/Dockerfile
+    volumes:
+      - ./catalog:/catalog:ro
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+  # ---- gated profile: traefik + crate-auth ----
+
+  crate-auth:
+    profiles:
+      - gated
+    build:
+      context: ./crate-auth
+      dockerfile: Dockerfile
+    environment:
+      AUTH_LOCAL_OPEN: "true"
+      # SESSION_HMAC_KEY intentionally omitted: crate-auth generates an
+      # ephemeral dev key at boot and logs a warning. Set it here to persist
+      # sessions across restarts:
+      #   SESSION_HMAC_KEY: "change-me-to-a-random-32-byte-hex-string"
+    restart: unless-stopped
+
+  traefik:
+    profiles:
+      - gated
+    image: traefik:v3.3
+    ports:
+      - "8081:80"     # gated entry point (avoids clash with crate-web:8080)
+    volumes:
+      - ./deploy/compose/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./deploy/compose/traefik-dynamic.yml:/etc/traefik/dynamic.yml:ro
+    depends_on:
+      - crate-web
+      - crate-auth
+    restart: unless-stopped

@@ -12,6 +12,11 @@
 //     set or AUTH_FLOW_MODE=tap-initiated is explicit.
 //   "standard": enforces state + PKCE. Active when OIDC_ISSUER or
 //     OAUTH_AUTHORIZE_URL is set (unless overridden back to tap-initiated).
+//
+// AUTH_LOCAL_OPEN:
+//   When "true", boot without any provider credentials. /auth/verify always
+//   returns 200. SESSION_HMAC_KEY is auto-generated if absent. For local Docker
+//   Desktop development ONLY — never set in production.
 
 function env(name) {
   const v = process.env[name];
@@ -120,9 +125,19 @@ export function applyDiscovery(doc) {
   }
 }
 
+// Local/open mode flag. When AUTH_LOCAL_OPEN=true the server boots without any
+// provider credentials and /auth/verify always returns 200. This is ONLY for
+// local Docker Desktop development; production must never set this flag.
+export const localOpen = (env('AUTH_LOCAL_OPEN') || '').toLowerCase() === 'true';
+
 // Fail fast on missing critical secrets (skip when running unit tests, which
 // import individual modules directly rather than booting the server).
 export function assertConfig() {
+  if (localOpen) {
+    // Local mode: no provider vars required. SESSION_HMAC_KEY is generated
+    // ephemerally at boot if absent (handled in server.js boot section).
+    return;
+  }
   const missing = [];
   for (const key of [
     'tokenUrl',

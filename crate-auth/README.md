@@ -84,6 +84,7 @@ See `.claude/swarm/contract.md` for the full canonical list with precedence rule
 | `SESSION_COOKIE_NAME` | no | `crate_session` | |
 | `STATE_COOKIE_NAME` | no | `crate_state` | Short-lived state+PKCE cookie (standard mode) |
 | `KONAMI_SEQUENCE` | no | `up,up,down,down,left,right,left,right,b,a` | |
+| `AUTH_LOCAL_OPEN` | no | `false` | When `true`: boot without provider vars; `/auth/verify` always returns 200; `SESSION_HMAC_KEY` auto-generated if absent. **Local development only — never set in production.** |
 | `APP_ORIGIN` | no | `''` | Redirect target after auth; falls back to `/` |
 | `JWKS_CACHE_TTL_SECONDS` | no | `3600` | Fallback when JWKS has no `Cache-Control max-age` |
 

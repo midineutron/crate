@@ -61,6 +61,7 @@ If a value is available at a higher precedence, lower-precedence sources are ign
 
 | Variable | Required | Default | Notes |
 |----------|----------|---------|-------|
+| `AUTH_LOCAL_OPEN` | no | `false` | When `true`: skip provider config; `/auth/verify` always 200; ephemeral `SESSION_HMAC_KEY` if unset. **Local Docker Desktop dev only.** |
 | `PORT` | no | `9090` | HTTP listen port |
 | `APP_ORIGIN` | no | `''` | Post-auth redirect target; falls back to `/` |
 | `KONAMI_SEQUENCE` | no | `up,up,...,b,a` | Comma-separated backdoor key sequence |

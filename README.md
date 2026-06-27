@@ -17,6 +17,45 @@ Crate has two independent deployment paths — pick one:
 - **AWS / CloudFront / Terraform** (signed-cookie auth, S3 catalog) — the
   original path, documented in the Quickstart below and under `terraform/`.
 
+## Run on your laptop (Docker Desktop)
+
+No cloud account, no IdP, no mycelium hardware needed. Requires
+[Docker Desktop](https://www.docker.com/products/docker-desktop/).
+
+### 1. Get your music in
+
+```sh
+# Install the catalog builder dependency (once):
+pip install mutagen
+
+# Scan your music folder and populate catalog/:
+python3 tools/build-catalog.py "/path/to/your/music" --output ./catalog
+
+# Transcode WAV / FLAC / M4A to MP3 (needs ffmpeg: brew install ffmpeg):
+python3 tools/build-catalog.py "/path/to/your/music" --output ./catalog --transcode
+```
+
+### 2a. Ungated — direct access (no auth)
+
+```sh
+docker compose up
+```
+
+Open **http://localhost:8080**. crate-web is served directly; no auth layer.
+Ideal for personal use on your own machine.
+
+### 2b. Gated — full forwardAuth topology (like production, but local)
+
+```sh
+docker compose --profile gated up
+```
+
+Open **http://localhost:8081**. Traffic goes through Traefik → forwardAuth →
+`crate-auth` (running in `AUTH_LOCAL_OPEN=true` mode, so `/auth/verify` always
+returns 200 and no IdP is required) → `crate-web`.
+
+`8080` (direct/ungated) and `8081` (gated) can run simultaneously without port
+conflicts.
 
 ## Deployment topologies
 

@@ -1,0 +1,43 @@
+# Traefik dynamic configuration for local Docker Compose (gated profile).
+#
+# Mirrors deploy/k8s/50-traefik.yaml semantics:
+#   - forwardAuth middleware calls crate-auth /auth/verify
+#   - /auth/* and /health bypass the gate (higher priority rule)
+#   - everything else goes to crate-web behind the gate
+
+http:
+  middlewares:
+    crate-forward-auth:
+      forwardAuth:
+        address: "http://crate-auth:9090/auth/verify"
+
+  routers:
+    # /auth/* and /health -> crate-auth (no forwardAuth middleware).
+    # PathPrefix matching: /auth/ covers all auth endpoints.
+    crate-auth-routes:
+      rule: "PathPrefix(`/auth/`) || Path(`/health`)"
+      priority: 20
+      service: crate-auth-svc
+      entryPoints:
+        - web
+
+    # Everything else -> crate-web behind the forwardAuth gate.
+    crate-web-gated:
+      rule: "PathPrefix(`/`)"
+      priority: 10
+      middlewares:
+        - crate-forward-auth
+      service: crate-web-svc
+      entryPoints:
+        - web
+
+  services:
+    crate-auth-svc:
+      loadBalancer:
+        servers:
+          - url: "http://crate-auth:9090"
+
+    crate-web-svc:
+      loadBalancer:
+        servers:
+          - url: "http://crate-web:8080"

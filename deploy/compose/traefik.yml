@@ -1,0 +1,29 @@
+# Traefik static configuration for local Docker Compose (gated profile).
+#
+# Mirrors the forwardAuth topology from deploy/k8s/50-traefik.yaml but targets
+# Docker Compose service names instead of k8s cluster-local DNS.
+#
+# Entrypoint:
+#   web  -> :80   (inside the container; mapped to host :8081 in docker-compose.yml)
+#
+# Routes:
+#   /auth/* and /health  -> crate-auth:9090   (bypass forwardAuth)
+#   everything else      -> crate-web:8080    (behind forwardAuth gate)
+#
+# forwardAuth calls crate-auth /auth/verify; on non-2xx Traefik relays
+# crate-auth's status + body to the client (decoy page on unauthenticated).
+
+api:
+  insecure: true   # dashboard on :8080 inside traefik container (not exposed externally)
+
+entryPoints:
+  web:
+    address: ":80"
+
+providers:
+  file:
+    filename: /etc/traefik/dynamic.yml
+    watch: true
+
+log:
+  level: INFO

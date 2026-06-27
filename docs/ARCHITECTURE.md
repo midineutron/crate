@@ -141,10 +141,15 @@ decision here and an ADR disagree, the ADR wins (and this doc should be updated)
 
 ## The thesis in one paragraph
 
-If the artist holds the keys and the masters, the host becomes interchangeable.
-Sovereignty stops being a slogan and becomes an architectural guarantee — and on
-that guarantee you build a real artist-controlled economy: physical-tag access,
-tiered listening, and curated discovery that no host can capture.
+Crate is **listener-first**: everyone is a listener, and artist, DJ, broadcaster,
+and label are **composable roles** on one sovereign identity. If a participant
+holds their own keys and data, the host becomes interchangeable — sovereignty
+stops being a slogan and becomes an architectural guarantee. On that guarantee you
+build a real participant-controlled economy: a **three-tier access model** (radio →
+member → owner) on physical NFC tags, and **curated discovery** (artist vouch
+graph + DJ reference-mixes) that no host can capture. The structural difference
+from incumbents is the data topology itself — **references, not copies; each
+participant holds their own root.**
 
 ## Layered model
 
@@ -201,6 +206,7 @@ data-plane; the host keeps nothing it cannot rebuild.
 | **0003** | **Access membranes**: radio / member / owner; **beacon** (presence, many scan) vs **keychain** (ownership, individual) | Makes "you had to show up" real; aligns cheapest-to-serve tier with the free public tier | E2.1–E2.5, E4.3, E4.4 |
 | **0004** | **Crate ↔ mycelium = loose coupling.** mycelium (existing platform) proves tag authenticity + identity; **Crate owns resolution + entitlement** (portable control-plane). Single global mycelium issuer; per-artist signing is Crate-side; no content keys; radio host-only | An external trust fabric Crate isn't deeply coupled to; sovereignty via Crate's portable ledger | MYC-1/2/3/5, E2.1, E4.3 |
 | **0005** | **Pluggable auth** — crate-auth is a generic OAuth2/OIDC client; mycelium is one provider (tap-initiated, ES256); discovery + ES256/RS256 + state/PKCE | Crate runs against any IdP; mycelium not the necessary center for auth | crate-auth (PR #17), MYC-1 |
+| **0006** | **Listener-first, composable roles** — everyone is a listener; artist/DJ/broadcaster/label are composable roles; node is role-activated; three-tier access (radio/member/owner) fundamental for every owner; DJ dual-mode; **mix is first-class (references, not copies)** | The DJ/curator economy and a cold-start path, on the same sovereign foundation | PRD, ROADMAP, E1.6 |
 | *(DIST)* | **compose canonical**, k8s parallel, appliance/cloud wrap compose | One software, four operator tiers (PRD G6) | DIST-1 in early M1 |
 
 ## How it all fits: the funnel

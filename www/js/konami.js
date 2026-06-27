@@ -3,12 +3,23 @@
  * @module konami
  */
 
-import { KONAMI_SEQUENCE, SWIPE_THRESHOLD, MODES } from './config.js';
+import { KONAMI_SEQUENCE, SWIPE_THRESHOLD, MODES, CONFIG } from './config.js';
 import { state } from './state.js';
 import { elements } from './elements.js';
 import { setSecretUnlocked } from './storage.js';
 import { trackEvent } from './analytics.js';
 import { updateModeBasedUI } from './ui.js';
+
+// CloudFront cookie helpers — imported lazily to avoid bundling in proxy mode.
+// In proxy mode CONFIG.AUTH_MODE === 'proxy' and these functions are never called.
+let _setSignedCookies = null;
+async function getSetSignedCookies() {
+  if (!_setSignedCookies) {
+    const mod = await import('./cookies.js');
+    _setSignedCookies = mod.setSignedCookies;
+  }
+  return _setSignedCookies;
+}
 
 // Forward declaration - will be set by player module
 let startPlayerFn = null;
@@ -169,6 +180,26 @@ export function showCashRain() {
 }
 
 /**
+ * Unlock secret mode — single dispatch point.
+ *
+ * cloudfront: sets CloudFront signed cookies + local secret toggle.
+ * proxy:      local secret toggle only (no cookie/network logic).
+ *
+ * @returns {Promise<void>}
+ */
+export async function unlockSecret() {
+  state.secretUnlocked = true;
+  state.mode = MODES.SECRET;
+  setSecretUnlocked(true);
+
+  if (CONFIG.AUTH_MODE === 'cloudfront') {
+    const setCookies = await getSetSignedCookies();
+    setCookies();
+  }
+  // proxy mode: local toggle only, no cookie or network logic
+}
+
+/**
  * Handle Konami code input
  * @param {string} direction - Arrow direction
  */
@@ -193,11 +224,9 @@ export function handleKonamiInput(direction) {
       }
 
       // First time unlock
-      state.secretUnlocked = true;
-      state.mode = MODES.SECRET;
-      setSecretUnlocked(true);
       trackEvent('secret_unlock', { method: 'konami' });
       flashKonamiSuccess();
+      unlockSecret();
       fireKonamiReward();
       // Update UI immediately for mode change
       updateModeBasedUI();
@@ -237,10 +266,8 @@ export function handleBAInput(input) {
  * Unlock secret mode on desktop (B+A keys)
  */
 function unlockSecretDesktop() {
-  state.secretUnlocked = true;
   state.waitingForBA = false;
-  state.mode = MODES.SECRET;
-  setSecretUnlocked(true);
+  unlockSecret();
   fireKonamiReward();
   // Update UI immediately for mode change
   updateModeBasedUI();
@@ -254,10 +281,8 @@ function unlockSecretDesktop() {
  * Unlock secret mode on mobile (down+up swipe)
  */
 function unlockSecretMobile() {
-  state.secretUnlocked = true;
   state.waitingForBA = false;
-  state.mode = MODES.SECRET;
-  setSecretUnlocked(true);
+  unlockSecret();
   fireKonamiReward();
   // Update UI immediately for mode change
   updateModeBasedUI();

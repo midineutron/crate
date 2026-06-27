@@ -32,6 +32,8 @@ const siteObj = {
   name: frontmatter.name || 'Crate',
   url: frontmatter.url || '',
   password: frontmatter.password || null,
+  // authMode: 'cloudfront' (default, upstream-safe) or 'proxy' (containerized)
+  authMode: frontmatter.authMode || 'cloudfront',
   gaTrackingId: frontmatter.ga_tracking_id || null,
   theme: {
     accent: frontmatter.theme?.accent || '#ff0000',

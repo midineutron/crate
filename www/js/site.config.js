@@ -11,6 +11,9 @@ export const SITE = {
 
   // Auth
   password: null,
+  // Auth mode: 'cloudfront' (default, S3+CloudFront signed cookies) or
+  // 'proxy' (containerized — Traefik forwardAuth / crate-auth)
+  authMode: 'cloudfront',
 
   // Analytics
   gaTrackingId: null,

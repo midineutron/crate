@@ -17,6 +17,46 @@ Crate has two independent deployment paths — pick one:
 - **AWS / CloudFront / Terraform** (signed-cookie auth, S3 catalog) — the
   original path, documented in the Quickstart below and under `terraform/`.
 
+
+## Deployment topologies
+
+Crate supports two auth topologies, controlled by `authMode` in `site.md` (or
+`SITE.authMode` in `www/js/site.config.js`). The default is `cloudfront` so
+forks without a `site.md` continue to work with the original CloudFront flow.
+
+### cloudfront (default)
+
+```yaml
+# site.md (or leave unset — default is cloudfront)
+authMode: cloudfront
+```
+
+- Static deployment on S3 + CloudFront.
+- Auth is client-side: Konami / B+A sequences call `setSignedCookies()`,
+  which writes pre-signed CloudFront cookies into the browser.
+- `tools/deploy-cookies.py` generates and embeds the signed cookies into
+  `dist/js/config.js` at deploy time by rewriting the `SIGNED_COOKIES`
+  constant (look for the `// COOKIES_PLACEHOLDER` marker).
+- `handleEnter()` also refreshes cookies on each entry.
+- Reset / full-reset clears cookies via `clearAllCookies()`.
+- No server-side session; cookies are the auth token.
+
+### proxy (containerized)
+
+```yaml
+# site.md
+authMode: proxy
+```
+
+- Containerized deployment: Traefik forwardAuth → crate-auth mints an HMAC
+  `crate_session` cookie on OAuth2 proof-of-tap (mycelium NFC tag scan).
+- All auth is upstream at the network layer; the app never touches cookies.
+- The decoy page carries a konami-code backdoor (POST /auth/konami) for
+  operator access — separate from the app's konami easter egg.
+- The app's Konami / B+A path only toggles local secret-mode UI (no cookie
+  or network logic).
+- `crate-auth/` handles session minting; do not edit it here.
+
 ## Features
 
 - Streaming audio player with queue, search, favorites, and progress tracking

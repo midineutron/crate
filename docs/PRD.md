@@ -91,22 +91,36 @@ capture.
    economy.
 5. **Same software across self-host, label, and federation.** Topology, not
    tenancy.
-6. **Open by default for discovery; gated by ownership for access.**
+6. **Everyone is a listener.** Identity is universal; artist, DJ, label, and
+   future roles are additive grants on one listener identity, never separate
+   account types.
+7. **Open by default for discovery; gated by ownership for access.**
 
 ---
 
 ## 5. Personas
 
-- **Independent artist (non-technical).** Wants their music online, branded, and
-  theirs. Will connect Google Drive and drop in MP3s. Sells tags at shows.
-- **Independent artist (technical).** Self-hosts on their own cluster, uses S3 or
-  a NAS, wants full control of infra.
-- **Label operator.** Hosts multiple artists' nodes, runs the discovery index and
-  NFC fulfillment/commerce, provides infrastructure to artists who don't
+**Everyone is a listener.** That is the base identity in Crate. Every other
+persona is a **role added on top of a listener** — an additive grant, not a
+separate account type. A person can hold several roles at once, and new roles can
+be introduced over time without anyone needing a new identity. (Identity model:
+ADR 0002.)
+
+- **Listener (base — everyone).** Discovers a node and samples it under the open
+  tier; can acquire a tag to unlock full access and offline listening; follows the
+  artist's vouch graph to neighboring nodes. Every participant starts here.
+- **Artist (role).** A listener who publishes. Wants their music online, branded,
+  and theirs.
+  - *Non-technical:* connects a cloud drive, drops in files, sells tags at shows.
+  - *Technical:* self-hosts on their own cluster/NAS/S3, wants full infra control.
+- **DJ / curator (role).** A listener who publishes mixes and playlists that
+  *reference* tracks across crates — curation by reference, with authority always
+  resolving to each track's origin artist.
+- **Label operator (role).** Hosts many artists' nodes, runs the discovery index
+  and NFC fulfillment/commerce, and provides infrastructure to artists who don't
   self-host — without owning their work.
-- **Fan.** Discovers a node, samples it under the preview tier, buys a tag to
-  unlock full access and offline listening, follows the artist's vouch graph to
-  neighboring nodes.
+- **Future roles.** e.g. provider — introduced the same way: an additive grant on
+  the one listener identity.
 
 ---
 
@@ -116,6 +130,8 @@ capture.
 |---|---|
 | **Crate / Node** | One artist's independent streaming instance. The unit of deployment. |
 | **Label** | An operator hosting many nodes + the discovery index + NFC commerce. |
+| **Listener** | The base participant identity. Everyone is a listener; all other roles are additive. |
+| **Role** | An additive capability (artist, DJ/curator, label, future roles) granted on a listener identity, not a separate account. |
 | **mycelium** | The artist's portable root of trust: sovereign identity, key custody, entitlement authority. Travels with the artist, not the host. |
 | **Proof-of-tap** | A cryptographically verified NFC tap — authenticity and anti-replay handled by mycelium — that mints or upgrades a session. |
 | **Control-plane** | The crate's portable soul: identity refs, manifest, entitlement ledger, config, vouch graph. Small, artist-held. |

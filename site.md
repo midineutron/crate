@@ -1,6 +1,7 @@
 ---
 name: Crate
 url: https://crate.rmzi.world
+authMode: proxy
 ---
 
 ### What

@@ -34,6 +34,25 @@ import {
 // Track current blob URL for cleanup
 let currentBlobUrl = null;
 
+// CloudFront cookie helpers — lazy-loaded to avoid running in proxy mode.
+let _clearAllCookies = null;
+let _setSignedCookies = null;
+async function getClearAllCookies() {
+  if (!_clearAllCookies) {
+    const mod = await import('./cookies.js');
+    _clearAllCookies = mod.clearAllCookies;
+  }
+  return _clearAllCookies;
+}
+async function getSetSignedCookies() {
+  if (!_setSignedCookies) {
+    const mod = await import('./cookies.js');
+    _setSignedCookies = mod.setSignedCookies;
+  }
+  return _setSignedCookies;
+}
+
+
 /**
  * Handle playback errors with recovery
  * @param {Error} error
@@ -559,9 +578,13 @@ export function handleProgressClick(e) {
 /**
  * Reset app - clears auth but preserves heard tracks
  */
-export function resetApp() {
+export async function resetApp() {
   trackEvent('app_reset');
   setSecretUnlocked(false);
+  if (CONFIG.AUTH_MODE === 'cloudfront') {
+    const clearCookies = await getClearAllCookies();
+    clearCookies();
+  }
   // Preserve heard tracks - don't clear STORAGE_KEY
   // Preserve hash for deep links
   const hash = window.location.hash;
@@ -577,6 +600,10 @@ export async function fullResetApp() {
   }
   trackEvent('full_reset');
   setSecretUnlocked(false);
+  if (CONFIG.AUTH_MODE === 'cloudfront') {
+    const clearCookies = await getClearAllCookies();
+    clearCookies();
+  }
   try {
     localStorage.removeItem(CONFIG.STORAGE_KEY);
     localStorage.removeItem(CONFIG.FAVORITES_KEY);
@@ -601,7 +628,12 @@ export async function handleEnter() {
   // Unlock audio on user interaction (critical for mobile)
   await unlockAudio();
 
-  // Auth is handled upstream by the proxy; just start the player.
+  // In cloudfront mode, refresh signed cookies on entry.
+  // In proxy mode, auth is handled upstream; just start the player.
+  if (CONFIG.AUTH_MODE === 'cloudfront') {
+    const setCookies = await getSetSignedCookies();
+    setCookies();
+  }
   startPlayer();
 }
 

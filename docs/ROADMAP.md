@@ -8,6 +8,13 @@ Two-tier delivery plan derived from `docs/PRD.md`.
   milestone epics via API. Prevents a component (e.g. mycelium) from being
   smeared across unrelated milestones.
 
+**Direction (ADR 0006):** Crate is **listener-first** — everyone is a listener, and
+artist / DJ / broadcaster / label are **composable roles** on one sovereign
+identity; a node is **role-activated** (client by default). The **three-tier
+access model** (radio → member → owner) is fundamental and applies to every crate
+owner. The DJ is first-class, with a **private keychain-gated collection**
+(cold-start wedge) and **public reference-mixes** (scale with the network).
+
 Status: **Draft v0.1** — structure agreed; deployment topology and USB ingest
 still under discussion (see "Open architecture questions").
 
@@ -97,7 +104,7 @@ E0.3 PWA + NFS catalog.
 | E1.3 | Cache mgmt: LRU + size cap, manifest/artwork pinned, rebuildable | R-DL-1,4,6 | E1.2 |
 | E1.4 | Ingest watcher + auto-manifest write-back; in-interface upload → write-target source | R-CAT-4 | E1.2 |
 | E1.5 | "Crate is a folder" onboarding (connect→drop→play) | R-DL-3, G2 | E1.1-1.4 |
-| E1.6 | Manifest schema: content-addressed track IDs (ADR 0002) + per-track **radio-eligibility** flag (ADR 0003) | R-CAT-4 | E1.4 |
+| E1.6 | Manifest schema: content-addressed track IDs (ADR 0002) + per-track **radio-eligibility** flag (ADR 0003) + **first-class mix object** (signed content-addressed reference list, peer to a track; basis for DJ public reference-mixes) (ADR 0006) | R-CAT-4 | E1.4 |
 
 ## M2 — Proof-of-tap + tiers
 
@@ -163,6 +170,17 @@ DIST-1 (compose) lands early in M1 and underpins M1+; DIST-2/3 gate the §12 onb
 
 ---
 
+## Cold-start sequencing (ADR 0006)
+
+Lead with what works on an empty network: **a solo crate owner + keychain +
+radio** — an artist with their own catalog, or a **DJ with a private,
+keychain-gated collection** (the original Crate intent). Layer **beacons /
+in-person presence** and the **public reference-mix network + DJ discovery graph**
+as density grows. Designed-in from the start; not built first (mixes need an
+artist/track substrate to reference).
+
+---
+
 ## Open architecture questions
 
 ### Q-DIST — Deployment topology / packaging  (RESOLVED)
@@ -170,6 +188,13 @@ DIST-1 (compose) lands early in M1 and underpins M1+; DIST-2/3 gate the §12 onb
 canonical form sharing the same container images; appliance (Crate OS, Pi /
 old-PC) and cloud one-click are thin wrappers over compose. DIST-1 (compose)
 lands in early M1. See track DIST.
+
+### Q-DIRECTION — Listener-first, composable roles  (ADR 0006, RESOLVED)
+Reframes the project listener-first; artist/DJ/broadcaster/label are composable
+roles; node is role-activated; three-tier access (radio/member/owner) is a
+fundamental for every owner; DJ is first-class (private keychain collection +
+public reference-mixes); the mix is a first-class object. See
+`docs/adr/0006-listener-first-composable-roles.md`.
 
 ### Q-AUTH-PROVIDER — Pluggable auth provider  (ADR 0005, RESOLVED — implemented)
 crate-auth is a **generic OAuth2/OIDC client**; mycelium is one provider profile.

@@ -12,3 +12,7 @@ tools/.venv
 *.md
 !site.md
 crate_logo*.png
+
+# room app: exclude installed deps and local build output
+room/node_modules
+room/dist

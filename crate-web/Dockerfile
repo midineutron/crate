@@ -30,6 +30,13 @@ RUN npm run build
 # the version string and sends the app into an infinite reload loop.
 RUN node -e "const fs=require('fs');const s=fs.readFileSync('www/js/config.js','utf8');const m=s.match(/APP_VERSION\s*=\s*'([^']+)'/);if(!m){throw new Error('APP_VERSION not found in www/js/config.js')}fs.writeFileSync('dist/version.txt', m[1] + '\n');console.log('wrote dist/version.txt =', m[1])"
 
+# ---- Build the /room audio-reactive 3D experience (separate Vite app) ----
+# room/ has its own package.json + lockfile and builds with base '/room/'.
+# Output is copied into dist/room so nginx serves it at /room/.
+COPY room ./room
+RUN cd room && npm ci && npm run build \
+    && mkdir -p /build/dist/room && cp -r dist/. /build/dist/room/
+
 # ---- Stage 2: serve with nginx (non-root, listens on :8080) ----
 FROM nginxinc/nginx-unprivileged:1.27-alpine AS runtime
 

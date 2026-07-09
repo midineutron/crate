@@ -1,9 +1,9 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// Served under /room/ by crate-web nginx. base makes all asset URLs /room/*.
+// Served at the site root by crate-web nginx.
 export default defineConfig({
-  base: '/room/',
+  base: '/',
   plugins: [react()],
   server: { host: true, port: 5173 },
 })

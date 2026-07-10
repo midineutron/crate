@@ -13,7 +13,26 @@ export class AudioEngine {
     this.level = 0     // overall 0..1
     this.bass = 0      // low band 0..1
     this.treble = 0    // high band 0..1
+    this.isStream = false // true while an <audio> stream is the source (vs demo)
+    this.onEnded = null   // called when a stream track finishes (auto-advance)
   }
+
+  // Transport readouts for the control bar (seconds; 0 when unknown).
+  get currentTime() { return this.audioEl ? this.audioEl.currentTime : 0 }
+  get duration() {
+    const d = this.audioEl && this.audioEl.duration
+    return isFinite(d) ? d : 0
+  }
+  get paused() { return this.audioEl ? this.audioEl.paused : true }
+
+  seek(sec) {
+    if (this.audioEl && isFinite(sec)) {
+      this.audioEl.currentTime = Math.max(0, Math.min(sec, this.duration || sec))
+    }
+  }
+
+  pause() { if (this.audioEl) { try { this.audioEl.pause() } catch (e) {} } }
+  async play() { if (this.audioEl) { await this.resume(); try { await this.audioEl.play() } catch (e) {} } }
 
   _ensure() {
     if (this.ctx) return
@@ -57,10 +76,14 @@ export class AudioEngine {
     if (!this.audioEl) {
       this.audioEl = new Audio()
       if (!sameOrigin) this.audioEl.crossOrigin = 'anonymous'
-      this.audioEl.loop = true
+      this.audioEl.loop = false // playlists advance instead of looping one track
+      this.audioEl.addEventListener('ended', () => {
+        if (this.isStream && typeof this.onEnded === 'function') this.onEnded()
+      })
       this.mediaSource = this.ctx.createMediaElementSource(this.audioEl)
       this.mediaSource.connect(this.master)
     }
+    this.isStream = true
     this.audioEl.src = url
     await this.audioEl.play()
   }
@@ -69,6 +92,7 @@ export class AudioEngine {
   async playDemo(seed = 0) {
     await this.resume()
     this.stopSources()
+    this.isStream = false
     const ctx = this.ctx
     const t = ctx.currentTime
     const nodes = []

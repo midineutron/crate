@@ -6,6 +6,7 @@ import * as THREE from 'three'
 import { AudioProvider, useAudio } from './audio/audioContext'
 import { Room } from './scene/Room'
 import { GyroControls } from './scene/GyroControls'
+import { CameraRig } from './scene/CameraRig'
 import { Overlay } from './ui/Overlay'
 
 // Red cluster lights that fake the emissive glow spilling into the room,
@@ -52,11 +53,13 @@ function ReactiveBloom() {
 }
 
 function SceneControls() {
-  const { gyro } = useAudio()
+  const { gyro, focused } = useAudio()
+  const orbit = useRef()
   return (
     <>
       <OrbitControls
-        enabled={!gyro}
+        ref={orbit}
+        enabled={!gyro && !focused}
         target={[0, 1.5, 0]}
         enablePan={false}
         enableDamping
@@ -67,7 +70,8 @@ function SceneControls() {
         minPolarAngle={0.5}
         maxPolarAngle={Math.PI / 1.9}
       />
-      <GyroControls enabled={gyro} />
+      <GyroControls enabled={gyro && !focused} />
+      <CameraRig orbitRef={orbit} />
     </>
   )
 }

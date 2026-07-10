@@ -5,6 +5,7 @@ import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing'
 import * as THREE from 'three'
 import { AudioProvider, useAudio } from './audio/audioContext'
 import { Room } from './scene/Room'
+import { GyroControls } from './scene/GyroControls'
 import { Overlay } from './ui/Overlay'
 
 // Red cluster lights that fake the emissive glow spilling into the room,
@@ -50,6 +51,27 @@ function ReactiveBloom() {
   )
 }
 
+function SceneControls() {
+  const { gyro } = useAudio()
+  return (
+    <>
+      <OrbitControls
+        enabled={!gyro}
+        target={[0, 1.5, 0]}
+        enablePan={false}
+        enableDamping
+        dampingFactor={0.08}
+        rotateSpeed={-0.4}
+        minDistance={0.6}
+        maxDistance={3.0}
+        minPolarAngle={0.5}
+        maxPolarAngle={Math.PI / 1.9}
+      />
+      <GyroControls enabled={gyro} />
+    </>
+  )
+}
+
 export default function App() {
   return (
     <AudioProvider>
@@ -71,17 +93,7 @@ export default function App() {
         <ReactiveLights />
         <ReactiveBloom />
 
-        <OrbitControls
-          target={[0, 1.5, 0]}
-          enablePan={false}
-          enableDamping
-          dampingFactor={0.08}
-          rotateSpeed={-0.4}
-          minDistance={0.6}
-          maxDistance={3.0}
-          minPolarAngle={0.5}
-          maxPolarAngle={Math.PI / 1.9}
-        />
+        <SceneControls />
       </Canvas>
       <Overlay />
     </AudioProvider>

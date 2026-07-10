@@ -1,7 +1,90 @@
 import { useAudio } from '../audio/audioContext'
+import { shades, RED } from '../palette'
+
+function fmt(sec) {
+  if (!sec || !isFinite(sec)) return '0:00'
+  const m = Math.floor(sec / 60)
+  const s = Math.floor(sec % 60)
+  return m + ':' + String(s).padStart(2, '0')
+}
+
+// The terminal that appears over the focused CRT: project header + track list.
+function Terminal() {
+  const { focusedProject, focused, active, playing, playTrack, back } = useAudio()
+  if (!focusedProject) return null
+  const proj = focusedProject
+  // Scope the terminal to the focused TV's own colour, independent of the room
+  // accent (which tracks whatever is currently playing).
+  const p = shades(proj.color || RED)
+  const style = { '--accent': p.main, '--accent-mid': p.mid, '--accent-dim': p.dim, '--accent-rgb': p.rgb }
+  return (
+    <div className="terminal" style={style}>
+      <div className="term-scan" />
+      <div className="term-head">
+        <span className="term-os">CRATE OS</span>
+        <span className="term-kind">{proj.kind === 'album' ? 'ALBUM' : 'MIX'}</span>
+      </div>
+      <div className="term-title">{proj.name}</div>
+      <div className="term-rows">
+        {proj.tracks.map((t, i) => {
+          const isActive = active && active.screen === focused && active.index === i
+          return (
+            <button
+              key={t.id || i}
+              className={'term-row' + (isActive ? ' active' : '')}
+              onClick={() => playTrack(focused, i)}
+            >
+              <span className="tr-mark">{isActive ? (playing ? '▶' : '❚❚') : t.num || '··'}</span>
+              <span className="tr-name">{t.name}</span>
+              <span className="tr-dur">{t.dur}</span>
+            </button>
+          )
+        })}
+      </div>
+      <div className="term-foot">
+        <button className="term-back" onClick={back}>◀ BACK</button>
+        <span className="term-count">{proj.tracks.length} TRACKS</span>
+      </div>
+    </div>
+  )
+}
+
+// Persistent transport bar; visible whenever something is loaded.
+function Transport() {
+  const { active, activeProject, activeTrack, playing, now, togglePlay, next, prev, seekFrac, stop } = useAudio()
+  if (!active || !activeTrack) return null
+  const frac = now.duration ? Math.min(1, now.time / now.duration) : 0
+  const onScrub = (e) => {
+    const r = e.currentTarget.getBoundingClientRect()
+    seekFrac((e.clientX - r.left) / r.width)
+  }
+  return (
+    <div className="transport">
+      <div className="tp-info">
+        <div className="tp-name">{activeTrack.name}</div>
+        <div className="tp-sub">
+          {activeProject ? activeProject.name : ''}{activeTrack.artist ? ' · ' + activeTrack.artist : ''}
+        </div>
+      </div>
+      <div className="tp-controls">
+        <button className="tp-btn" onClick={prev} aria-label="previous">◀◀</button>
+        <button className="tp-btn play" onClick={togglePlay} aria-label="play/pause">{playing ? '❚❚' : '▶'}</button>
+        <button className="tp-btn" onClick={next} aria-label="next">▶▶</button>
+      </div>
+      <div className="tp-seek">
+        <span className="tp-time">{fmt(now.time)}</span>
+        <div className="tp-bar" onClick={onScrub}>
+          <div className="tp-fill" style={{ width: (frac * 100).toFixed(1) + '%' }} />
+        </div>
+        <span className="tp-time">{fmt(now.duration)}</span>
+      </div>
+      <button className="tp-close" onClick={stop} aria-label="stop">✕</button>
+    </div>
+  )
+}
 
 export function Overlay() {
-  const { active, entered, enter, stop, source, gyro, gyroSupported, toggleGyro } = useAudio()
+  const { entered, enter, source, gyro, gyroSupported, toggleGyro, focused } = useAudio()
 
   if (!entered) {
     return (
@@ -10,7 +93,7 @@ export function Overlay() {
           <h1>CRATE<span>ROOM</span></h1>
           <p>an audio-reactive terminal</p>
           <button onClick={enter}>ENTER</button>
-          <small>look around · tap a screen to play</small>
+          <small>look around · click a computer to open it</small>
         </div>
       </div>
     )
@@ -18,14 +101,16 @@ export function Overlay() {
 
   return (
     <>
-      <div className="hud top-left">
-        <div className="tag">CRATE_ROOM</div>
-        <div className="hint">
-          {source === 'catalog' ? 'crate catalog' : 'demo synth'} · tap a screen
+      {!focused && (
+        <div className="hud top-left">
+          <div className="tag">CRATE_ROOM</div>
+          <div className="hint">
+            {source === 'catalog' ? 'crate catalog' : 'demo synth'} · click a computer
+          </div>
         </div>
-      </div>
+      )}
 
-      {gyroSupported && (
+      {gyroSupported && !focused && (
         <button
           className={'gyro-btn' + (gyro ? ' on' : '')}
           onClick={toggleGyro}
@@ -35,16 +120,8 @@ export function Overlay() {
         </button>
       )}
 
-      {active && (
-        <div className="hud bottom">
-          <div className="np"><span className="dot" /> NOW PLAYING</div>
-          <div className="title">{active.title}</div>
-          <div className="sub">
-            {active.streamUrl ? 'stream' : 'demo synth'}{active.artist ? ' · ' + active.artist : ''}
-          </div>
-          <button className="stop" onClick={stop}>STOP</button>
-        </div>
-      )}
+      <Terminal />
+      <Transport />
     </>
   )
 }

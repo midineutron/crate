@@ -1,11 +1,12 @@
-import { Suspense, useRef } from 'react'
-import { Canvas, useFrame } from '@react-three/fiber'
+import { Suspense, useRef, useMemo } from 'react'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing'
 import * as THREE from 'three'
 import { AudioProvider, useAudio } from './audio/audioContext'
 import { Room } from './scene/Room'
 import { GyroControls } from './scene/GyroControls'
+import { CameraRig } from './scene/CameraRig'
 import { Overlay } from './ui/Overlay'
 
 // Red cluster lights that fake the emissive glow spilling into the room,
@@ -16,11 +17,17 @@ const RED_LIGHTS = [
 ]
 
 function ReactiveLights() {
-  const { engine } = useAudio()
+  const { engine, accent } = useAudio()
   const group = useRef()
+  // Lights glow the playing TV's colour (red when nothing plays), lerped so the
+  // room shifts hue smoothly as tracks start and stop.
+  const target = useMemo(() => new THREE.Color(accent), [accent])
   useFrame(() => {
-    const p = 1.6 + engine.bass * 9 + engine.level * 4.5
-    if (group.current) for (const l of group.current.children) l.intensity = p
+    const p = 1.4 + engine.bass * 5.5 + engine.level * 3
+    if (group.current) for (const l of group.current.children) {
+      l.intensity = p
+      l.color.lerp(target, 0.12)
+    }
   })
   return (
     <group ref={group}>
@@ -31,11 +38,25 @@ function ReactiveLights() {
   )
 }
 
+// Tints the fog and background toward a dark version of the accent so the whole
+// room's haze follows the selected/playing TV instead of staying red.
+function ReactiveEnvironment() {
+  const { accent } = useAudio()
+  const { scene } = useThree()
+  const fogTarget = useMemo(() => new THREE.Color(accent).multiplyScalar(0.14), [accent])
+  const bgTarget = useMemo(() => new THREE.Color(accent).multiplyScalar(0.05), [accent])
+  useFrame(() => {
+    if (scene.fog) scene.fog.color.lerp(fogTarget, 0.04)
+    if (scene.background && scene.background.isColor) scene.background.lerp(bgTarget, 0.04)
+  })
+  return null
+}
+
 function ReactiveBloom() {
   const { engine } = useAudio()
   const bloom = useRef()
   useFrame(() => {
-    if (bloom.current) bloom.current.intensity = 0.7 + engine.level * 1.6 + engine.bass * 1.2
+    if (bloom.current) bloom.current.intensity = 0.6 + engine.level * 1.0 + engine.bass * 0.8
   })
   return (
     <EffectComposer>
@@ -52,11 +73,13 @@ function ReactiveBloom() {
 }
 
 function SceneControls() {
-  const { gyro } = useAudio()
+  const { gyro, focused } = useAudio()
+  const orbit = useRef()
   return (
     <>
       <OrbitControls
-        enabled={!gyro}
+        ref={orbit}
+        enabled={!gyro && !focused}
         target={[0, 1.5, 0]}
         enablePan={false}
         enableDamping
@@ -67,7 +90,8 @@ function SceneControls() {
         minPolarAngle={0.5}
         maxPolarAngle={Math.PI / 1.9}
       />
-      <GyroControls enabled={gyro} />
+      <GyroControls enabled={gyro && !focused} />
+      <CameraRig orbitRef={orbit} />
     </>
   )
 }
@@ -91,6 +115,7 @@ export default function App() {
           <Room />
         </Suspense>
         <ReactiveLights />
+        <ReactiveEnvironment />
         <ReactiveBloom />
 
         <SceneControls />

@@ -1,6 +1,6 @@
-# SUPERHOT_ROOM — audio-reactive 3D website
+# CRATE_ROOM — audio-reactive 3D website
 
-A React Three Fiber site rendering a SUPERHOT-style computer room (built in
+A React Three Fiber site rendering a stylized computer room (built in
 Blender, exported to glTF). Each CRT screen is a clickable "project" that plays
 an audio stream and turns that screen into a live audio-reactive visualizer
 (equalizer + oscilloscope), while the whole room pulses (emissive glow, red
@@ -54,7 +54,7 @@ visualizer/reactivity goes silent (audio may still play, but data reads as zero)
 
 ## Source scene
 
-The Blender file is in `blender/superhot_room.blend`. Re-export with the glTF
+The Blender file is in `blender/crate_room.blend`. Re-export with the glTF
 exporter (GLB, +Y up, apply modifiers, no cameras/lights) to
-`public/superhot_room.glb`. Screen surfaces are named `*_s`; text overlays are
+`public/crate_room.glb`. Screen surfaces are named `*_s`; text overlays are
 `ScreenText_*`; CRT bodies are `*_b` — `projects.js` maps all three to projects.

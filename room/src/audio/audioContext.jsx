@@ -13,6 +13,26 @@ export function AudioProvider({ children }) {
   )
   const assignments = useRef({})
 
+  // Gyroscope look-around (phones). Off by default; the toggle handles iOS
+  // permission. Pausing gyro returns control to swipe/drag (OrbitControls).
+  const [gyro, setGyro] = useState(false)
+  const gyroSupported =
+    typeof window !== 'undefined' &&
+    typeof window.DeviceOrientationEvent !== 'undefined' &&
+    ('ontouchstart' in window || (navigator.maxTouchPoints || 0) > 0)
+
+  const toggleGyro = useCallback(async () => {
+    if (gyro) { setGyro(false); return }
+    const DOE = typeof window !== 'undefined' ? window.DeviceOrientationEvent : null
+    if (DOE && typeof DOE.requestPermission === 'function') {
+      try {
+        const res = await DOE.requestPermission()
+        if (res !== 'granted') return
+      } catch (e) { return }
+    }
+    setGyro(true)
+  }, [gyro])
+
   const enter = useCallback(async () => {
     await engine.resume()
     const { map, source } = await loadAssignments()
@@ -40,8 +60,8 @@ export function AudioProvider({ children }) {
   }, [engine])
 
   const value = useMemo(
-    () => ({ engine, active, source, entered, enter, play, stop }),
-    [engine, active, source, entered, enter, play, stop]
+    () => ({ engine, active, source, entered, enter, play, stop, gyro, gyroSupported, toggleGyro }),
+    [engine, active, source, entered, enter, play, stop, gyro, gyroSupported, toggleGyro]
   )
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

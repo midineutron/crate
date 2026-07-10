@@ -45,3 +45,15 @@ canvas { display: block; }
   padding: 7px 22px; font: inherit; letter-spacing: 0.3em; cursor: pointer; font-size: 12px;
 }
 .stop:hover { border-color: #ff2a1e; color: #ff2a1e; }
+
+/* gyro toggle */
+.gyro-btn {
+  position: fixed; z-index: 6; right: 20px; bottom: 22px; pointer-events: auto;
+  background: rgba(10,6,7,0.6); border: 1px solid #6b2a26; color: #b5453d;
+  padding: 11px 18px; font: inherit; font-size: 12px; letter-spacing: 0.18em;
+  cursor: pointer; backdrop-filter: blur(4px); transition: all 0.2s;
+}
+.gyro-btn:hover { border-color: #ff2a1e; color: #ff2a1e; }
+.gyro-btn.on {
+  border-color: #ff2a1e; color: #ff2a1e; box-shadow: 0 0 18px rgba(255,42,30,0.4);
+}

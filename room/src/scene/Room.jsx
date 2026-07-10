@@ -7,7 +7,7 @@ import { NAME_TO_SCREEN, SCREEN_SET } from '../config/projects'
 import { makeScreenCanvas, drawViz } from './ScreenViz'
 
 // Resolve GLB under the app base (/room/ in production, / in dev-standalone).
-const GLB = (import.meta.env.BASE_URL || '/') + 'superhot_room.glb'
+const GLB = (import.meta.env.BASE_URL || '/') + 'room.glb'
 
 export function Room() {
   const { scene } = useGLTF(GLB)

@@ -1,6 +1,7 @@
 import { createContext, useContext, useMemo, useState, useRef, useCallback, useEffect } from 'react'
 import { AudioEngine } from './AudioEngine'
 import { loadAssignments } from './catalog'
+import { shades, RED } from '../palette'
 
 const Ctx = createContext(null)
 
@@ -132,16 +133,30 @@ export function AudioProvider({ children }) {
   const activeTrack = activeProject ? activeProject.tracks[active.index] : null
   const focusedProject = focused ? byScreen[focused] || null : null
 
+  // Global room accent: the focused TV's colour (immediate on select), then the
+  // playing TV's, else the default red. Drives the CSS variables every themed
+  // surface reads from, plus the 3D lights/fog.
+  const accent = (focusedProject && focusedProject.color) ||
+    (activeProject && activeProject.color) || RED
+  useEffect(() => {
+    const p = shades(accent)
+    const r = document.documentElement.style
+    r.setProperty('--accent', p.main)
+    r.setProperty('--accent-mid', p.mid)
+    r.setProperty('--accent-dim', p.dim)
+    r.setProperty('--accent-rgb', p.rgb)
+  }, [accent])
+
   const value = useMemo(
     () => ({
       engine, source, entered, enter,
       byScreen, focused, focus, back, focusedProject,
-      active, activeProject, activeTrack, playing, now,
+      active, activeProject, activeTrack, playing, now, accent,
       playTrack, togglePlay, next, prev, seekFrac, stop,
       gyro, gyroSupported, toggleGyro,
     }),
     [engine, source, entered, enter, byScreen, focused, focus, back, focusedProject,
-     active, activeProject, activeTrack, playing, now,
+     active, activeProject, activeTrack, playing, now, accent,
      playTrack, togglePlay, next, prev, seekFrac, stop,
      gyro, gyroSupported, toggleGyro]
   )

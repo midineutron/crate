@@ -103,6 +103,7 @@ function assign(projects) {
       name: p.name,
       kind: p.kind,
       seed: s.seed,
+      color: s.color,
       tracks: p.tracks,
     }
     byScreen[s.screen] = entry

@@ -1,4 +1,5 @@
 import { useAudio } from '../audio/audioContext'
+import { shades, RED } from '../palette'
 
 function fmt(sec) {
   if (!sec || !isFinite(sec)) return '0:00'
@@ -12,8 +13,12 @@ function Terminal() {
   const { focusedProject, focused, active, playing, playTrack, back } = useAudio()
   if (!focusedProject) return null
   const proj = focusedProject
+  // Scope the terminal to the focused TV's own colour, independent of the room
+  // accent (which tracks whatever is currently playing).
+  const p = shades(proj.color || RED)
+  const style = { '--accent': p.main, '--accent-mid': p.mid, '--accent-dim': p.dim, '--accent-rgb': p.rgb }
   return (
-    <div className="terminal">
+    <div className="terminal" style={style}>
       <div className="term-scan" />
       <div className="term-head">
         <span className="term-os">CRATE OS</span>
@@ -62,9 +67,9 @@ function Transport() {
         </div>
       </div>
       <div className="tp-controls">
-        <button className="tp-btn" onClick={prev} aria-label="previous">⏮</button>
+        <button className="tp-btn" onClick={prev} aria-label="previous">◀◀</button>
         <button className="tp-btn play" onClick={togglePlay} aria-label="play/pause">{playing ? '❚❚' : '▶'}</button>
-        <button className="tp-btn" onClick={next} aria-label="next">⏭</button>
+        <button className="tp-btn" onClick={next} aria-label="next">▶▶</button>
       </div>
       <div className="tp-seek">
         <span className="tp-time">{fmt(now.time)}</span>

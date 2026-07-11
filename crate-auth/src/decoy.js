@@ -26,7 +26,9 @@ export function decoyHtml({ konamiSequence } = {}) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>502 Bad Gateway</title>
 <style>
-  html, body { height: 100%; margin: 0; }
+  /* touch-action/overscroll: stop the swipes from scrolling or triggering
+     pull-to-refresh on mobile so the konami gestures register cleanly. */
+  html, body { height: 100%; margin: 0; touch-action: none; overscroll-behavior: none; }
   body {
     background: #f7f7f7;
     color: #4a4a4a;
@@ -34,6 +36,8 @@ export function decoyHtml({ konamiSequence } = {}) {
     display: flex;
     align-items: center;
     justify-content: center;
+    -webkit-user-select: none; user-select: none;
+    -webkit-tap-highlight-color: transparent;
   }
   .wrap { text-align: center; padding: 2rem; max-width: 40rem; }
   h1 { font-size: 2.25rem; font-weight: 600; margin: 0 0 0.5rem; color: #333; }

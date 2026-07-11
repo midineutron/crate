@@ -59,16 +59,16 @@ export function decoyHtml({ konamiSequence } = {}) {
     };
     var buf = [];
     function reset() { buf = []; }
-    function submit() {
+    function submit(sequence) {
       fetch('/auth/konami', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
-        body: JSON.stringify({ sequence: buf.slice() })
+        body: JSON.stringify({ sequence: sequence })
       }).then(function (r) {
         if (r.ok) { window.location.reload(); }
-        else { reset(); }
-      }).catch(reset);
+        else { reset(); touchReset(); }
+      }).catch(function () { reset(); touchReset(); });
     }
     window.addEventListener('keydown', function (e) {
       var token = keymap[e.code];
@@ -81,11 +81,47 @@ export function decoyHtml({ konamiSequence } = {}) {
         for (var i = 0; i < seq.length; i++) {
           if (buf[i] !== seq[i]) { ok = false; break; }
         }
-        if (ok) { submit(); }
+        if (ok) { submit(buf.slice()); }
       }
     });
-    // Touch fallback: a long-press sequence is intentionally not supported;
-    // the entry path is keyboard-only by design.
+    // Touch entry (mobile): swipes supply the directional tokens; a tap supplies
+    // the next non-directional token (e.g. B then A). Mirrors the keyboard path,
+    // tracking progress against the expected sequence.
+    var DIRS = { up: 1, down: 1, left: 1, right: 1 };
+    var entered = [];
+    function touchReset() { entered = []; }
+    function feed(token) {
+      var expected = seq[entered.length];
+      if (!expected) { touchReset(); return; }
+      var expectDir = DIRS[expected] === 1;
+      if (token === 'tap') {
+        if (expectDir) { return; }        // ignore stray taps during the swipes
+        entered.push(expected);           // tap supplies the non-directional token
+      } else {                            // a swipe direction
+        if (expectDir && token === expected) {
+          entered.push(token);
+        } else {
+          touchReset();                   // wrong gesture: restart, seeding seq[0]
+          if (token === seq[0]) { entered.push(token); }
+          return;
+        }
+      }
+      if (entered.length === seq.length) { submit(entered.slice()); }
+    }
+    var sx = 0, sy = 0;
+    var SWIPE_MIN = 24, TAP_MAX = 12; // px
+    window.addEventListener('touchstart', function (e) {
+      var t = e.changedTouches[0]; sx = t.clientX; sy = t.clientY;
+    }, { passive: true });
+    window.addEventListener('touchend', function (e) {
+      var t = e.changedTouches[0];
+      var dx = t.clientX - sx, dy = t.clientY - sy;
+      var adx = Math.abs(dx), ady = Math.abs(dy);
+      if (adx < TAP_MAX && ady < TAP_MAX) { feed('tap'); return; }
+      if (adx < SWIPE_MIN && ady < SWIPE_MIN) { return; } // too small to classify
+      if (adx > ady) { feed(dx > 0 ? 'right' : 'left'); }
+      else { feed(dy > 0 ? 'down' : 'up'); }
+    }, { passive: true });
   })();
   </script>
 </body>

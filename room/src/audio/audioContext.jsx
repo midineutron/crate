@@ -254,7 +254,10 @@ export function AudioProvider({ children }) {
   useEffect(() => {
     if (typeof document === 'undefined') return
     const onVisibility = () => {
-      if (!document.hidden && engine.ctx && engine.ctx.state === 'suspended') {
+      // Only the demo synth needs the context live. Resuming it during a stream
+      // would hand the iOS audio session back to Web Audio and kill the
+      // element's lock-screen Now Playing card.
+      if (!document.hidden && !engine.isStream && engine.ctx && engine.ctx.state === 'suspended') {
         engine.ctx.resume().catch(() => {})
       }
     }

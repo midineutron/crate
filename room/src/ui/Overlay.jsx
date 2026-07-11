@@ -18,7 +18,7 @@ function Terminal() {
   const p = shades(proj.color || RED)
   const style = { '--accent': p.main, '--accent-mid': p.mid, '--accent-dim': p.dim, '--accent-rgb': p.rgb }
   return (
-    <div className="terminal" style={style}>
+    <div className={'terminal' + (active ? ' with-transport' : '')} style={style}>
       <div className="term-scan" />
       <div className="term-head">
         <span className="term-os">CRATE OS</span>

@@ -133,6 +133,67 @@ export function AudioProvider({ children }) {
   const activeTrack = activeProject ? activeProject.tracks[active.index] : null
   const focusedProject = focused ? byScreen[focused] || null : null
 
+  // ---- Media Session: lock-screen / control-center transport ----
+  // Lets the stream (playing through the native <audio> element, so it
+  // survives iOS backgrounding) show up with title/artist and hardware
+  // play/pause/skip/seek controls. Fully feature-detected -- no-op where
+  // Media Session isn't supported.
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return
+    if (!activeTrack) {
+      navigator.mediaSession.metadata = null
+      return
+    }
+    try {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: activeTrack.name || '',
+        artist: activeTrack.artist || '',
+        album: (activeProject && activeProject.name) || '',
+      })
+    } catch (e) {}
+  }, [activeTrack, activeProject])
+
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return
+    const ms = navigator.mediaSession
+    const handlers = [
+      ['play', () => togglePlay()],
+      ['pause', () => togglePlay()],
+      ['previoustrack', () => prev()],
+      ['nexttrack', () => next()],
+      ['seekto', (details) => {
+        if (details && typeof details.seekTime === 'number') engine.seek(details.seekTime)
+      }],
+    ]
+    for (const [action, handler] of handlers) {
+      try { ms.setActionHandler(action, handler) } catch (e) {} // unsupported action type
+    }
+    return () => {
+      for (const [action] of handlers) {
+        try { ms.setActionHandler(action, null) } catch (e) {}
+      }
+    }
+  }, [togglePlay, prev, next, engine])
+
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return
+    try { navigator.mediaSession.playbackState = playing ? 'playing' : 'paused' } catch (e) {}
+  }, [playing])
+
+  // ---- resume the demo AudioContext when the tab/app comes back to the
+  // foreground (iOS/Safari suspend it while hidden; streams are unaffected
+  // since they play through the native <audio> element, not this context). ----
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    const onVisibility = () => {
+      if (!document.hidden && engine.ctx && engine.ctx.state === 'suspended') {
+        engine.ctx.resume().catch(() => {})
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => document.removeEventListener('visibilitychange', onVisibility)
+  }, [engine])
+
   // Global room accent: the focused TV's colour (immediate on select), then the
   // playing TV's, else the default red. Drives the CSS variables every themed
   // surface reads from, plus the 3D lights/fog.

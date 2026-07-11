@@ -1,5 +1,11 @@
-// Web Audio engine: one AnalyserNode fed by either an <audio> stream or a
-// built-in demo synth. Per-frame data is read directly (no React re-render).
+// Web Audio engine: one AnalyserNode fed ONLY by the built-in demo synth.
+// Stream playback goes through a plain native <audio> element instead --
+// iOS suspends Web-Audio-routed sources when the page is hidden/locked, but
+// a native <audio> element keeps playing and gets Media Session lock-screen
+// controls. To keep the SAME downstream consumers (freq/time/level/bass/
+// treble) working for streams, the decoded file is analyzed once (off the
+// main thread, in analyze.worker.js) into per-frame byte arrays that
+// update() indexes by audioEl.currentTime.
 export class AudioEngine {
   constructor() {
     this.ctx = null
@@ -7,7 +13,6 @@ export class AudioEngine {
     this.freq = null
     this.time = null
     this.audioEl = null
-    this.mediaSource = null
     this.demoNodes = null
     this.master = null
     this.level = 0     // overall 0..1
@@ -15,6 +20,15 @@ export class AudioEngine {
     this.treble = 0    // high band 0..1
     this.isStream = false // true while an <audio> stream is the source (vs demo)
     this.onEnded = null   // called when a stream track finishes (auto-advance)
+
+    // Precomputed stream analysis (see analyze.worker.js). `frames` is
+    // { fps, bins, fftSize, nFrames, freqAll, timeAll } -- flat, frame-major
+    // Uint8Arrays -- or null until the worker finishes (or if analysis fails).
+    this.frames = null
+    this.analyzing = false // true while a stream's worker analysis is running
+    this.worker = null
+    this._analyzeGen = 0 // bumped on every stopSources()/new stream so stale
+                          // fetch/decode/worker results are ignored
   }
 
   // Transport readouts for the control bar (seconds; 0 when unknown).
@@ -54,6 +68,78 @@ export class AudioEngine {
     if (this.ctx.state === 'suspended') await this.ctx.resume()
   }
 
+  _ensureWorker() {
+    if (this.worker) return this.worker
+    this.worker = new Worker(new URL('./analyze.worker.js', import.meta.url), { type: 'module' })
+    this.worker.onmessage = (e) => {
+      const d = e.data
+      if (!d || d.gen !== this._analyzeGen) return // stale: track changed since this job started
+      if (d.ok) {
+        this.frames = {
+          fps: d.fps, bins: d.bins, fftSize: d.fftSize, nFrames: d.nFrames,
+          freqAll: d.freqAll, timeAll: d.timeAll,
+        }
+      } else {
+        console.error('stream analysis failed', d.error)
+        this.frames = null
+      }
+      this.analyzing = false
+    }
+    this.worker.onerror = (err) => {
+      console.error('analyze worker crashed', err)
+      this.analyzing = false
+    }
+    return this.worker
+  }
+
+  // Decode compressed audio into PCM without ever resuming the throwaway
+  // context, so this never produces audible output or fights iOS's one
+  // "real" playing context.
+  async _decodeForAnalysis(arrayBuffer) {
+    const Ctx = window.AudioContext || window.webkitAudioContext
+    const tmp = new Ctx()
+    try {
+      return await tmp.decodeAudioData(arrayBuffer)
+    } finally {
+      try { await tmp.close() } catch (e) {}
+    }
+  }
+
+  // Kick off (fetch -> decode -> worker FFT) for the current stream. Guarded
+  // by `gen` throughout so a fast track skip discards stale work instead of
+  // clobbering the frames for the track that's actually playing now.
+  async _analyzeStream(url, gen) {
+    this.analyzing = true
+    try {
+      const res = await fetch(url, { credentials: 'same-origin' })
+      const arrayBuffer = await res.arrayBuffer()
+      if (gen !== this._analyzeGen) return
+      const audioBuffer = await this._decodeForAnalysis(arrayBuffer)
+      if (gen !== this._analyzeGen) return
+
+      // Mono mixdown -- the worker only needs one channel to build a spectrum.
+      const chans = audioBuffer.numberOfChannels
+      const len = audioBuffer.length
+      const mono = new Float32Array(len)
+      for (let c = 0; c < chans; c++) {
+        const data = audioBuffer.getChannelData(c)
+        for (let i = 0; i < len; i++) mono[i] += data[i] / chans
+      }
+      if (gen !== this._analyzeGen) return
+
+      const bins = this.analyser.frequencyBinCount
+      const fftSize = this.analyser.fftSize
+      const worker = this._ensureWorker()
+      worker.postMessage(
+        { gen, channelData: mono, sampleRate: audioBuffer.sampleRate, fps: 24, fftSize, bins },
+        [mono.buffer]
+      )
+    } catch (e) {
+      console.error('stream analysis setup failed', e)
+      if (gen === this._analyzeGen) { this.analyzing = false; this.frames = null }
+    }
+  }
+
   stopSources() {
     if (this.demoNodes) {
       for (const n of this.demoNodes) {
@@ -63,29 +149,42 @@ export class AudioEngine {
       this.demoNodes = null
     }
     if (this.audioEl) { try { this.audioEl.pause() } catch (e) {} }
+    // Invalidate any in-flight stream analysis (fetch/decode/worker) so a
+    // fast skip or switch to the demo synth can't land stale frames.
+    this._analyzeGen++
+    this.frames = null
+    this.analyzing = false
   }
 
   async playStream(url) {
     await this.resume()
     this.stopSources()
     // Same-origin media (crate's /audio/...) must NOT set crossOrigin, so the
-    // auth cookie is sent and the analyser can read it untainted. Only set
-    // crossOrigin for a genuinely cross-origin stream.
+    // auth cookie is sent. Only set crossOrigin for a genuinely cross-origin
+    // stream. (No longer analyser-related -- kept for correct fetch/credential
+    // behaviour of the <audio> element itself.)
     const sameOrigin =
       url.startsWith('/') || (typeof location !== 'undefined' && url.startsWith(location.origin))
     if (!this.audioEl) {
       this.audioEl = new Audio()
+      this.audioEl.playsInline = true
+      this.audioEl.preload = 'auto'
       if (!sameOrigin) this.audioEl.crossOrigin = 'anonymous'
       this.audioEl.loop = false // playlists advance instead of looping one track
       this.audioEl.addEventListener('ended', () => {
         if (this.isStream && typeof this.onEnded === 'function') this.onEnded()
       })
-      this.mediaSource = this.ctx.createMediaElementSource(this.audioEl)
-      this.mediaSource.connect(this.master)
     }
+    // Play natively (default output) -- NOT routed through Web Audio, so
+    // iOS keeps it alive in the background / with the screen locked.
     this.isStream = true
     this.audioEl.src = url
     await this.audioEl.play()
+
+    // Precompute the spectrum for visuals; update() falls back to zeros
+    // until frames arrive (or if analysis fails).
+    const gen = ++this._analyzeGen
+    this._analyzeStream(url, gen)
   }
 
   // Evolving pad + sub + hats, tuned by `seed`, routed into the analyser.
@@ -140,8 +239,28 @@ export class AudioEngine {
 
   update() {
     if (!this.analyser) return
-    this.analyser.getByteFrequencyData(this.freq)
-    this.analyser.getByteTimeDomainData(this.time)
+
+    if (this.isStream) {
+      const f = this.frames
+      if (f && !document.hidden) {
+        let idx = Math.floor((this.audioEl ? this.audioEl.currentTime : 0) * f.fps)
+        if (idx < 0) idx = 0
+        else if (idx >= f.nFrames) idx = f.nFrames - 1
+        const fOff = idx * f.bins
+        for (let i = 0; i < f.bins; i++) this.freq[i] = f.freqAll[fOff + i]
+        const tOff = idx * f.fftSize
+        for (let i = 0; i < f.fftSize; i++) this.time[i] = f.timeAll[tOff + i]
+      } else {
+        // Not analyzed yet (or tab hidden): keep visuals idle rather than stale.
+        this.freq.fill(0)
+        this.time.fill(0)
+      }
+    } else {
+      // Demo synth: live analyser path, unchanged.
+      this.analyser.getByteFrequencyData(this.freq)
+      this.analyser.getByteTimeDomainData(this.time)
+    }
+
     const N = this.freq.length
     let sum = 0
     for (let i = 0; i < N; i++) sum += this.freq[i]

@@ -115,8 +115,9 @@ export function Overlay() {
           className={'gyro-btn' + (gyro ? ' on' : '')}
           onClick={toggleGyro}
           aria-pressed={gyro}
+          aria-label="Toggle gyro look"
         >
-          {gyro ? '❚❚  gyro on · tap for swipe' : '◎  look with gyro'}
+          {gyro ? '❚❚' : '◎'}
         </button>
       )}
 

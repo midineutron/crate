@@ -38,6 +38,11 @@ export function CameraRig({ orbitRef }) {
       }
       if (orbit) orbit.enabled = false
       mode.current = 'in'
+    } else if (gyro) {
+      // GyroControls owns the camera outside of focus; hand control straight
+      // back instead of running the OrbitControls-only fly-back, so a stale
+      // orbit spherical doesn't fight GyroControls' reseat on re-enable.
+      mode.current = 'orbit'
     } else {
       desiredPos.current.copy(homePos.current)
       desiredTarget.current.copy(homeTarget.current)
@@ -70,7 +75,7 @@ export function CameraRig({ orbitRef }) {
         if (orbit) {
           orbit.target.copy(homeTarget.current)
           orbit.enabled = !gyro
-          orbit.update()
+          if (!gyro) orbit.update()
         }
         mode.current = 'orbit'
       } else {

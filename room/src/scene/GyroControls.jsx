@@ -18,7 +18,7 @@ function applyDeviceOrientation(camera, alpha, beta, gamma, screenAngle) {
   camera.quaternion.multiply(q0.setFromAxisAngle(zee, -screenAngle * DEG))
 }
 
-export function GyroControls({ enabled, position = [0, 1.55, 0.2] }) {
+export function GyroControls({ enabled, position = [0, 1.6, 1.9] }) {
   const { camera } = useThree()
   const device = useRef({ alpha: 0, beta: 0, gamma: 0 })
   const screenAngle = useRef(0)

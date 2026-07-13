@@ -5,6 +5,51 @@ import { shades, RED } from '../palette'
 
 const Ctx = createContext(null)
 
+// Generate a lock-screen artwork tile in the project's accent hue. The catalog
+// carries no cover art, so we paint one: a dark radial field tinted with the
+// project colour, "CRATE OS" eyebrow, and the project name. Rastered to PNG
+// (iOS Media Session renders SVG artwork unreliably). Cached per colour+label.
+const artCache = new Map()
+function makeArtwork(color, label) {
+  if (typeof document === 'undefined') return null
+  const key = (color || '') + '|' + (label || '')
+  if (artCache.has(key)) return artCache.get(key)
+  const S = 512
+  const c = document.createElement('canvas')
+  c.width = S; c.height = S
+  const ctx = c.getContext('2d')
+  if (!ctx) return null
+  const hue = color || '#ff2a1e'
+  ctx.fillStyle = '#0a0607'
+  ctx.fillRect(0, 0, S, S)
+  const g = ctx.createRadialGradient(S / 2, S * 0.42, 0, S / 2, S * 0.42, S * 0.75)
+  g.addColorStop(0, hue)
+  g.addColorStop(1, '#0a0607')
+  ctx.globalAlpha = 0.55
+  ctx.fillStyle = g
+  ctx.fillRect(0, 0, S, S)
+  ctx.globalAlpha = 1
+  ctx.textAlign = 'center'
+  ctx.fillStyle = hue
+  ctx.font = '600 30px Menlo, Consolas, monospace'
+  ctx.fillText('CRATE OS', S / 2, S * 0.30)
+  // Project name, uppercased, truncated to fit.
+  let name = String(label || '').toUpperCase()
+  ctx.font = '700 68px Menlo, Consolas, monospace'
+  while (name.length > 3 && ctx.measureText(name).width > S * 0.86) {
+    name = name.slice(0, -1)
+  }
+  if (name !== String(label || '').toUpperCase() && name.length > 1) {
+    name = name.slice(0, -1) + '…'
+  }
+  ctx.fillStyle = '#f4eaea'
+  ctx.fillText(name, S / 2, S * 0.56)
+  let url = null
+  try { url = c.toDataURL('image/png') } catch (e) { url = null } // tainted-canvas guard
+  artCache.set(key, url)
+  return url
+}
+
 export function AudioProvider({ children }) {
   const engine = useMemo(() => new AudioEngine(), [])
 
@@ -145,10 +190,13 @@ export function AudioProvider({ children }) {
       return
     }
     try {
+      const proj = activeProject
+      const art = makeArtwork(proj && proj.color, proj && proj.name)
       navigator.mediaSession.metadata = new MediaMetadata({
         title: activeTrack.name || '',
         artist: activeTrack.artist || '',
-        album: (activeProject && activeProject.name) || '',
+        album: (proj && proj.name) || '',
+        artwork: art ? [{ src: art, sizes: '512x512', type: 'image/png' }] : [],
       })
     } catch (e) {}
   }, [activeTrack, activeProject])
@@ -180,13 +228,36 @@ export function AudioProvider({ children }) {
     try { navigator.mediaSession.playbackState = playing ? 'playing' : 'paused' } catch (e) {}
   }, [playing])
 
+  // Feed the lock-screen scrubber. `now` is polled every 250ms while a stream
+  // plays; mirror it into positionState so iOS shows elapsed/remaining + a seek
+  // bar. Guard against the invalid states setPositionState throws on.
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return
+    if (typeof navigator.mediaSession.setPositionState !== 'function') return
+    const { time, duration } = now
+    try {
+      if (duration > 0 && isFinite(duration)) {
+        navigator.mediaSession.setPositionState({
+          duration,
+          position: Math.max(0, Math.min(time || 0, duration)),
+          playbackRate: 1,
+        })
+      } else {
+        navigator.mediaSession.setPositionState() // clear when duration unknown
+      }
+    } catch (e) {}
+  }, [now])
+
   // ---- resume the demo AudioContext when the tab/app comes back to the
   // foreground (iOS/Safari suspend it while hidden; streams are unaffected
   // since they play through the native <audio> element, not this context). ----
   useEffect(() => {
     if (typeof document === 'undefined') return
     const onVisibility = () => {
-      if (!document.hidden && engine.ctx && engine.ctx.state === 'suspended') {
+      // Only the demo synth needs the context live. Resuming it during a stream
+      // would hand the iOS audio session back to Web Audio and kill the
+      // element's lock-screen Now Playing card.
+      if (!document.hidden && !engine.isStream && engine.ctx && engine.ctx.state === 'suspended') {
         engine.ctx.resume().catch(() => {})
       }
     }

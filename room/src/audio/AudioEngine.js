@@ -46,7 +46,13 @@ export class AudioEngine {
   }
 
   pause() { if (this.audioEl) { try { this.audioEl.pause() } catch (e) {} } }
-  async play() { if (this.audioEl) { await this.resume(); try { await this.audioEl.play() } catch (e) {} } }
+  async play() {
+    if (!this.audioEl) return
+    // The native element owns the iOS audio session (and thus Now Playing);
+    // keep the Web Audio context suspended so it doesn't steal it back.
+    if (this.ctx && this.ctx.state === 'running') { try { await this.ctx.suspend() } catch (e) {} }
+    try { await this.audioEl.play() } catch (e) {}
+  }
 
   _ensure() {
     if (this.ctx) return
@@ -157,8 +163,13 @@ export class AudioEngine {
   }
 
   async playStream(url) {
-    await this.resume()
     this.stopSources()
+    // Streams play ONLY through the native <audio> element. A running
+    // AudioContext connected to `destination` would own the iOS audio session
+    // and suppress the element's lock-screen Now Playing metadata, so suspend
+    // ours while a stream plays. (Decode uses a separate throwaway context, and
+    // stream visuals read precomputed frames -- neither needs `this.ctx` live.)
+    if (this.ctx && this.ctx.state === 'running') { try { await this.ctx.suspend() } catch (e) {} }
     // Same-origin media (crate's /audio/...) must NOT set crossOrigin, so the
     // auth cookie is sent. Only set crossOrigin for a genuinely cross-origin
     // stream. (No longer analyser-related -- kept for correct fetch/credential
@@ -171,6 +182,14 @@ export class AudioEngine {
       this.audioEl.preload = 'auto'
       if (!sameOrigin) this.audioEl.crossOrigin = 'anonymous'
       this.audioEl.loop = false // playlists advance instead of looping one track
+      // iOS only surfaces a Media Session "Now Playing" card for a media element
+      // that is connected to the document -- a detached `new Audio()` plays but
+      // stays invisible to the lock screen. Attach it hidden.
+      this.audioEl.setAttribute('aria-hidden', 'true')
+      this.audioEl.style.display = 'none'
+      if (typeof document !== 'undefined' && document.body) {
+        document.body.appendChild(this.audioEl)
+      }
       this.audioEl.addEventListener('ended', () => {
         if (this.isStream && typeof this.onEnded === 'function') this.onEnded()
       })

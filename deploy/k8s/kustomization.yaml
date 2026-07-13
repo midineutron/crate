@@ -12,4 +12,5 @@ resources:
   - 20-catalog-nfs.yaml
   - 30-crate-auth.yaml
   - 31-crate-web.yaml
+  - 40-navidrome.yaml
   - 50-traefik.yaml

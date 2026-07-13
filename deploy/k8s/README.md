@@ -20,7 +20,7 @@ Add this rule to your existing in-cluster cloudflared tunnel config:
 ```
 
 Then, in the Cloudflare dashboard, add a **Cache Rule: Bypass cache** for
-`crates.mycelium-network.io` (or at least `/audio/*`, `/artwork/*`,
+`crates.mycelium-network.io` (or at least `/rest/*`, `/audio/*`, `/artwork/*`,
 `/manifest.json`). Otherwise Cloudflare caches `.mp3`/artwork by extension,
 ignoring cookies, which would serve media past the forwardAuth gate.
 
@@ -69,6 +69,41 @@ Mounted **read-only** into crate-web at `/catalog`. nginx serves
 `/manifest.json`, `/audio/`, `/artwork/` from there (range requests enabled for
 audio seeking). The catalog is never baked into the image. Ensure the NFS export
 grants read access to all three k3s node IPs (lenovo1, lenovo2, dell1).
+
+## Navidrome (catalog + streaming backend)
+
+`40-navidrome.yaml` runs **Navidrome** (Subsonic-API server) as the per-node
+catalog runtime and audio stream backend. It is **ClusterIP-only** — never
+exposed via Traefik/Ingress. `crate-web` reverse-proxies `/rest/*` to it so all
+catalog reads and audio streams stay **same-origin** with the room SPA (required
+by the Web Audio analyser and the iOS lock-screen path). See GitHub #11.
+
+- **Music**: the existing catalog NFS PVC (`crate-catalog-pvc`) is mounted
+  **read-only** at `/music`. `ND_MUSICFOLDER=/music`.
+- **DB/cache**: a **separate writable PVC** (`navidrome-data`, RWO,
+  `local-path`) at `/data`. The music NFS stays read-only. The DB is
+  disposable — delete the PVC and rescan to regenerate the catalog.
+- **Auth at the gate**: nginx injects `Remote-User: crate` (overriding any
+  client value); Navidrome trusts that header only from
+  `ND_REVERSEPROXYWHITELIST`. No Subsonic credential reaches the browser.
+
+**Adjust for your cluster before applying:**
+
+- `ND_REVERSEPROXYWHITELIST` defaults to the k3s pod CIDR `10.42.0.0/16`. Set it
+  to your cluster's pod network so only in-cluster proxies can assert
+  `Remote-User`.
+- `storageClassName: local-path` on `navidrome-data` — change if your default
+  RWO StorageClass differs.
+
+**Verify on the cluster** (not verifiable off-cluster):
+
+```sh
+kubectl -n crate rollout status deploy/navidrome
+# Same-origin proxy reaches Navidrome (through the gate, with a valid session):
+#   curl -s https://crates.mycelium-network.io/rest/ping.view?f=json  -> "ok"
+# Navidrome is NOT publicly reachable except via /rest/* through crate-web.
+# Deleting the navidrome-data PVC + rescanning regenerates the catalog.
+```
 
 ## Create the secret
 

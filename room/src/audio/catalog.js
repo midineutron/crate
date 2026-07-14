@@ -1,26 +1,44 @@
-// Load crate's catalog manifest (same-origin, cookie-authed) and organize it
-// into *projects* — one per CRT. Same-origin audio means the Web Audio analyser
-// can read it with no CORS setup. Falls back to a synthesized demo catalog when
-// the real one is unavailable or empty.
+// Load crate's catalog from Navidrome via the Subsonic REST API (same-origin,
+// cookie-authed) and organize it into *projects* — one per CRT. Same-origin
+// means the Web Audio analyser and the native <audio> element read it with no
+// CORS setup. Falls back to a synthesized demo catalog when the backend is
+// unavailable or empty.
 //
-// The manifest has no album field; the project is encoded in the track title as
-// "<Project> - <NN Track name>". Titles without " - " are loose singles, which
-// we chunk into small playlists so every computer is a real, playable project.
+// Structure now comes from tags, not a title-string hack: each Subsonic *album*
+// (its `Album` / `Album Artist` tags) is one project on one CRT, its songs
+// ordered by disc + track number. See GitHub #11 (streaming architecture) and
+// #14 (tagging conventions).
+//
+// Auth is injected server-side: crate-web (nginx) reverse-proxies /rest/* to
+// Navidrome and asserts a fixed `Remote-User` identity, so the browser carries
+// NO Subsonic credential (no salt/token/password) — only the session cookie via
+// `credentials: 'include'`. We still send the mandatory Subsonic params
+// (u/v/c/f). `u` matches the injected identity.
 import { SCREENS } from '../config/projects'
 
-const SINGLES_CHUNK = 6 // loose singles per generated playlist
+const API_VERSION = '1.16.1'
+const CLIENT = 'crate'
+const USER = 'crate' // matches the Remote-User identity injected at the gate
 
-// Deterministic shuffle so the singles->screen spread is stable per load but
-// not strictly sequential. Seeded by count.
-function shuffled(arr, seed) {
-  const a = arr.slice()
-  let s = seed || a.length || 1
-  for (let i = a.length - 1; i > 0; i--) {
-    s = (s * 1103515245 + 12345) & 0x7fffffff
-    const j = s % (i + 1)
-    ;[a[i], a[j]] = [a[j], a[i]]
+// Build a /rest/ URL. JSON endpoints get f=json; binary endpoints (stream,
+// cover art) must omit it. Auth params are intentionally absent — the gate
+// injects identity.
+function restUrl(view, params = {}, { binary = false } = {}) {
+  const q = new URLSearchParams({ u: USER, v: API_VERSION, c: CLIENT, ...params })
+  if (!binary) q.set('f', 'json')
+  return '/rest/' + view + '.view?' + q.toString()
+}
+
+async function restJson(view, params) {
+  const res = await fetch(restUrl(view, params), { credentials: 'include' })
+  if (!res.ok) throw new Error(view + ' HTTP ' + res.status)
+  const body = await res.json()
+  const sub = body && body['subsonic-response']
+  if (!sub || sub.status !== 'ok') {
+    const msg = sub && sub.error ? sub.error.message : 'error'
+    throw new Error(view + ' subsonic: ' + msg)
   }
-  return a
+  return sub
 }
 
 function fmtDur(sec) {
@@ -30,65 +48,66 @@ function fmtDur(sec) {
   return m + ':' + String(s).padStart(2, '0')
 }
 
-// "01 Some Days" -> { num: '01', name: 'Some Days' }; bare title -> { num: '', name }
-function splitTrackName(rest) {
-  const m = rest.match(/^(\d{1,3})[.\-\s]+(.+)$/)
-  if (m) return { num: m[1].padStart(2, '0'), name: m[2].trim() }
-  return { num: '', name: rest.trim() }
-}
-
-function trackRecord(t, num, name) {
+// One Subsonic song -> a track record. `album` supplies cover art fallback when
+// the song carries none. Stream is format=raw (untranscoded) so the decoded FFT
+// frame timeline matches audioEl.currentTime exactly — load-bearing (#11).
+function trackRecord(s, album) {
+  const coverId = s.coverArt || (album && album.coverArt) || null
   return {
-    id: t.id,
-    num,
-    name: (name || t.title || 'untitled').toUpperCase(),
-    artist: t.artist || '',
-    dur: fmtDur(t.duration),
-    streamUrl: t.path ? '/' + t.path : null,
+    id: s.id,
+    num: s.track != null ? String(s.track).padStart(2, '0') : '',
+    name: (s.title || 'untitled').toUpperCase(),
+    artist: s.artist || '',
+    dur: fmtDur(s.duration),
+    streamUrl: restUrl('stream', { id: s.id, format: 'raw' }, { binary: true }),
+    artUrl: coverId
+      ? restUrl('getCoverArt', { id: coverId, size: '512' }, { binary: true })
+      : null,
   }
 }
 
-// Build the ordered list of projects from the raw manifest tracks.
-function clusterTracks(tracks) {
-  const named = new Map() // project name -> [tracks]
-  const loose = []
-  for (const t of tracks) {
-    const title = t.title || ''
-    const idx = title.indexOf(' - ')
-    if (idx > 0) {
-      const proj = title.slice(0, idx).trim()
-      const { num, name } = splitTrackName(title.slice(idx + 3))
-      if (!named.has(proj)) named.set(proj, [])
-      named.get(proj).push(trackRecord(t, num, name))
-    } else {
-      loose.push(t)
-    }
-  }
+// getAlbumList2 -> albums (metadata only, no songs).
+async function fetchAlbums() {
+  const sub = await restJson('getAlbumList2', {
+    type: 'alphabeticalByName',
+    size: '500',
+  })
+  return (sub.albumList2 && sub.albumList2.album) || []
+}
 
+// getAlbum -> one album with its songs.
+async function fetchAlbum(id) {
+  const sub = await restJson('getAlbum', { id })
+  return sub.album || null
+}
+
+// Albums -> ordered projects (one per album). Song lists fetched in parallel;
+// an album that fails to load is skipped rather than sinking the whole catalog.
+async function albumsToProjects(albums) {
+  const detailed = await Promise.all(
+    albums.map((a) => fetchAlbum(a.id).catch(() => null)),
+  )
   const projects = []
-  // Named projects first, tracks ordered by their leading number.
-  for (const [name, list] of named) {
-    list.sort((a, b) => (a.num || '99').localeCompare(b.num || '99'))
-    projects.push({ name, kind: 'album', tracks: list })
-  }
-  // Loose singles -> numbered mini-playlists.
-  const spread = shuffled(loose, loose.length)
-  for (let i = 0, n = 1; i < spread.length; i += SINGLES_CHUNK, n++) {
-    const chunk = spread.slice(i, i + SINGLES_CHUNK)
+  for (const album of detailed) {
+    if (!album) continue
+    const songs = album.song || []
+    if (!songs.length) continue
+    songs.sort(
+      (a, b) =>
+        (a.discNumber || 0) - (b.discNumber || 0) || (a.track || 0) - (b.track || 0),
+    )
     projects.push({
-      name: 'TRANSMISSION ' + String(n).padStart(2, '0'),
-      kind: 'mix',
-      tracks: chunk.map((t) => {
-        const { num, name } = splitTrackName(t.title || '')
-        return trackRecord(t, num || '', name || t.title)
-      }),
+      name: (album.name || 'untitled').toUpperCase(),
+      kind: 'album',
+      tracks: songs.map((s) => trackRecord(s, album)),
     })
   }
   return projects
 }
 
-// Assign projects onto the fixed screen slots. Extra projects (beyond 12) fold
-// their tracks into the last slot so nothing is dropped.
+// Assign projects onto the fixed screen slots. Extra projects (beyond the slot
+// count) fold their tracks into the last slot so nothing is dropped. seed and
+// color come from SCREENS, not the catalog.
 function assign(projects) {
   const byScreen = {}
   const list = []
@@ -133,6 +152,7 @@ function demoCatalog() {
       artist: '',
       dur: fmtDur(120 + ti * 37 + pi * 11),
       streamUrl: null, // demo synth
+      artUrl: null, // generated tile
     })),
   }))
   return assign(projects)
@@ -140,14 +160,13 @@ function demoCatalog() {
 
 export async function loadAssignments() {
   try {
-    const res = await fetch('/manifest.json', { credentials: 'include' })
-    if (!res.ok) throw new Error('manifest HTTP ' + res.status)
-    const data = await res.json()
-    const tracks = (data && data.tracks) || []
-    if (tracks.length === 0) throw new Error('empty catalog')
-    const { byScreen, list } = assign(clusterTracks(tracks))
+    const albums = await fetchAlbums()
+    if (albums.length === 0) throw new Error('empty catalog')
+    const projects = await albumsToProjects(albums)
+    const { byScreen, list } = assign(projects)
     if (list.length === 0) throw new Error('no projects')
-    return { byScreen, list, source: 'catalog', count: tracks.length }
+    const count = list.reduce((n, e) => n + e.tracks.length, 0)
+    return { byScreen, list, source: 'catalog', count }
   } catch (e) {
     const { byScreen, list } = demoCatalog()
     return { byScreen, list, source: 'demo', count: 0, error: String(e) }

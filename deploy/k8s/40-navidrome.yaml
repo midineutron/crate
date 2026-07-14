@@ -75,8 +75,12 @@ spec:
             - name: http
               containerPort: 4533
           env:
+            # The tagged FLAC library lives in a subfolder of the catalog
+            # export so only it is scanned; the legacy tagless MP3s under
+            # /music/audio stay for nginx /audio rollback but are NOT indexed.
+            # Populate the NAS at <export>/library (e.g. /volume1/crates/library).
             - name: ND_MUSICFOLDER
-              value: /music
+              value: /music/library
             - name: ND_DATAFOLDER
               value: /data
             - name: ND_PORT

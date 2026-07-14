@@ -10,7 +10,7 @@
 # Auth is injected at the gate: crate-web sets a trusted `Remote-User` header
 # (Navidrome's reverse-proxy auth) so no Subsonic credential ever reaches the
 # browser. Navidrome only honours that header from whitelisted source IPs
-# (ND_REVERSEPROXYWHITELIST), which — together with being ClusterIP-only —
+# (ND_EXTAUTH_TRUSTEDSOURCES), which — together with being ClusterIP-only —
 # closes the impersonation gap.
 #
 # The music library is the existing read-only catalog NFS export, mounted at
@@ -87,17 +87,22 @@ spec:
             - name: ND_SCANNER_SCHEDULE
               value: "@every 1h"
             # ---- Reverse-proxy auth (authenticate at the crate-web gate) ----
-            # crate-web injects `Remote-User: crate`; Navidrome trusts it only
-            # from the whitelisted source range. The first user seen through the
-            # proxy is granted admin, so `crate` becomes the service account.
-            # (Newer Navidrome also accepts ND_EXTAUTH_USERHEADER /
-            #  ND_EXTAUTH_TRUSTEDSOURCES; the legacy names below work on all
-            #  current versions.)
-            - name: ND_REVERSEPROXYUSERHEADER
+            # crate-web injects `Remote-User: crate`; Navidrome takes the
+            # authenticated user FROM this header and IGNORES the Subsonic
+            # u/p/t/s params when it is present (covers /rest/* since v0.52). A
+            # proxied user that does not yet exist is auto-provisioned on a fresh
+            # DB, so a DB reset needs no manual first-run step.
+            #
+            # TRUSTEDSOURCES must contain the IP of the DIRECT TCP peer that
+            # opens the connection to Navidrome — i.e. the crate-web pod (pod
+            # CIDR) — NOT the browser or ingress IP. Verified: peer IP 10.42.0.18
+            # fell in the range below. (These are the current option names; the
+            # legacy ND_REVERSEPROXYUSERHEADER / ND_REVERSEPROXYWHITELIST are
+            # deprecated and log a warning.)
+            - name: ND_EXTAUTH_USERHEADER
               value: Remote-User
-            - name: ND_REVERSEPROXYWHITELIST
-              # k3s default pod CIDR. Set to your cluster's pod network so only
-              # in-cluster proxies (crate-web) can assert Remote-User.
+            - name: ND_EXTAUTH_TRUSTEDSOURCES
+              # Pod CIDR. Set to your cluster's pod network.
               value: "10.42.0.0/16"
           volumeMounts:
             - name: music

@@ -98,6 +98,22 @@ by the Web Audio analyser and the iOS lock-screen path). See GitHub #11.
   its node-local DB volume follows the pod. Change to your target node's
   hostname (a reschedule elsewhere forces a full library rescan).
 
+**Provision the service-account user** (once per fresh DB). Navidrome authenticates
+`/rest/*` from the injected `Remote-User: crate` header, but the Subsonic path never
+*creates* the user — only Navidrome's web index (`/`) does, which crate-web never
+proxies. Materialize `crate` by hitting the web index once with the header from a
+trusted in-cluster IP (first user becomes admin; idempotent):
+
+```sh
+kubectl -n crate run nav-provision -i --rm --restart=Never \
+  --image=curlimages/curl:8.10.1 -- -s -o /dev/null \
+  -H "Remote-User: crate" http://navidrome:4533/
+```
+
+Alternatively, one time: `kubectl -n crate port-forward deploy/navidrome 4533:4533`,
+open http://localhost:4533, and create the admin with username `crate` via the
+first-run wizard. Re-run the provisioning step after any DB wipe.
+
 **Verify on the cluster** (not verifiable off-cluster):
 
 ```sh

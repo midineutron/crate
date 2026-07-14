@@ -89,16 +89,25 @@ spec:
             # ---- Reverse-proxy auth (authenticate at the crate-web gate) ----
             # crate-web injects `Remote-User: crate`; Navidrome takes the
             # authenticated user FROM this header and IGNORES the Subsonic
-            # u/p/t/s params when it is present (covers /rest/* since v0.52). A
-            # proxied user that does not yet exist is auto-provisioned on a fresh
-            # DB, so a DB reset needs no manual first-run step.
+            # u/p/t/s params when present (covers /rest/* since v0.52).
             #
-            # TRUSTEDSOURCES must contain the IP of the DIRECT TCP peer that
-            # opens the connection to Navidrome — i.e. the crate-web pod (pod
-            # CIDR) — NOT the browser or ingress IP. Verified: peer IP 10.42.0.18
-            # fell in the range below. (These are the current option names; the
-            # legacy ND_REVERSEPROXYUSERHEADER / ND_REVERSEPROXYWHITELIST are
-            # deprecated and log a warning.)
+            # PROVISIONING (once per fresh DB): the Subsonic /rest path does NOT
+            # auto-create the user — only Navidrome's web-index (/) handler does,
+            # and crate-web serves the SPA itself (it only proxies /rest/*), so
+            # that handler never fires for browser traffic. Materialize `crate`
+            # by sending ONE request to Navidrome's web index carrying the header
+            # from a trusted in-cluster IP:
+            #   kubectl -n crate run nav-provision -i --rm --restart=Never \
+            #     --image=curlimages/curl:8.10.1 -- -s -o /dev/null \
+            #     -H "Remote-User: crate" http://navidrome:4533/
+            # (First user becomes admin. Idempotent. Or once: port-forward :4533
+            # and use the first-run wizard.) See deploy/k8s/README.md.
+            #
+            # TRUSTEDSOURCES must contain the DIRECT TCP peer IP that opens the
+            # connection to Navidrome — the in-cluster pod (pod CIDR), NOT the
+            # browser or ingress IP. Verified: peer 10.42.0.18 is in range.
+            # (Current option names; legacy ND_REVERSEPROXY* still work but log a
+            # deprecation warning.)
             - name: ND_EXTAUTH_USERHEADER
               value: Remote-User
             - name: ND_EXTAUTH_TRUSTEDSOURCES

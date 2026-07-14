@@ -75,8 +75,13 @@ spec:
             - name: http
               containerPort: 4533
           env:
+            # Index the catalog export's audio/ tree, where the tagged FLAC
+            # library lives (audio/Albums/..., audio/Unfinished/..., etc.).
+            # NOTE: remove the legacy flat tagless MP3s (audio/*.mp3) from the
+            # NAS or they re-index as one "[Unknown Album]" alongside the real
+            # (FLAC) albums. nginx still serves /audio for rollback either way.
             - name: ND_MUSICFOLDER
-              value: /music
+              value: /music/audio
             - name: ND_DATAFOLDER
               value: /data
             - name: ND_PORT

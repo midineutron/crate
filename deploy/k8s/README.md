@@ -94,6 +94,9 @@ by the Web Audio analyser and the iOS lock-screen path). See GitHub #11.
   `Remote-User`.
 - `storageClassName: local-path` on `navidrome-data` — change if your default
   RWO StorageClass differs.
+- `nodeSelector: kubernetes.io/hostname: lenovo1` pins Navidrome to one node so
+  its node-local DB volume follows the pod. Change to your target node's
+  hostname (a reschedule elsewhere forces a full library rescan).
 
 **Verify on the cluster** (not verifiable off-cluster):
 

@@ -56,6 +56,12 @@ spec:
       labels:
         app: navidrome
     spec:
+      # Pin to one node so the node-local DB volume (local-path) and the pod
+      # always co-locate. A reschedule to another node would otherwise bind an
+      # empty volume and force a full library rescan. Change the hostname to
+      # match your target node's `kubernetes.io/hostname` label.
+      nodeSelector:
+        kubernetes.io/hostname: lenovo1
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000

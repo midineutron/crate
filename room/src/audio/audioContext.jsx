@@ -5,10 +5,12 @@ import { shades, RED } from '../palette'
 
 const Ctx = createContext(null)
 
-// Generate a lock-screen artwork tile in the project's accent hue. The catalog
-// carries no cover art, so we paint one: a dark radial field tinted with the
-// project colour, "CRATE OS" eyebrow, and the project name. Rastered to PNG
-// (iOS Media Session renders SVG artwork unreliably). Cached per colour+label.
+// Fallback lock-screen artwork tile in the project's accent hue, painted when a
+// track has no real cover art (demo mode, or an untagged track). Real covers now
+// come from Navidrome (track.artUrl -> /rest/getCoverArt); this paints a dark
+// radial field tinted with the project colour, "CRATE OS" eyebrow, and the
+// project name. Rastered to PNG (iOS Media Session renders SVG unreliably).
+// Cached per colour+label.
 const artCache = new Map()
 function makeArtwork(color, label) {
   if (typeof document === 'undefined') return null
@@ -191,12 +193,19 @@ export function AudioProvider({ children }) {
     }
     try {
       const proj = activeProject
-      const art = makeArtwork(proj && proj.color, proj && proj.name)
+      // Real Navidrome cover art when the track carries it; else the painted tile.
+      let artwork
+      if (activeTrack.artUrl) {
+        artwork = [{ src: activeTrack.artUrl, sizes: '512x512', type: 'image/jpeg' }]
+      } else {
+        const art = makeArtwork(proj && proj.color, proj && proj.name)
+        artwork = art ? [{ src: art, sizes: '512x512', type: 'image/png' }] : []
+      }
       navigator.mediaSession.metadata = new MediaMetadata({
         title: activeTrack.name || '',
         artist: activeTrack.artist || '',
         album: (proj && proj.name) || '',
-        artwork: art ? [{ src: art, sizes: '512x512', type: 'image/png' }] : [],
+        artwork,
       })
     } catch (e) {}
   }, [activeTrack, activeProject])

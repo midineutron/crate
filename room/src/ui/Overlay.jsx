@@ -86,7 +86,7 @@ function Transport() {
 
 // Settings modal (audio quality). Opened from the gear by the gyro control.
 function Settings({ open, onClose }) {
-  const { quality, setQuality } = useAudio()
+  const { quality, setQuality, gyro, gyroSupported, toggleGyro } = useAudio()
   if (!open) return null
   return (
     <div className="settings-veil" onClick={onClose}>
@@ -113,6 +113,26 @@ function Settings({ open, onClose }) {
             >LOSSY</button>
           </div>
         </div>
+        {gyroSupported && (
+          <div className="settings-row">
+            <div className="settings-label">
+              LOOK
+              <small>tilt your phone to look around the room</small>
+            </div>
+            <div className="settings-seg" role="group" aria-label="Gyro look">
+              <button
+                className={!gyro ? 'on' : ''}
+                aria-pressed={!gyro}
+                onClick={() => { if (gyro) toggleGyro() }}
+              >SWIPE</button>
+              <button
+                className={gyro ? 'on' : ''}
+                aria-pressed={gyro}
+                onClick={() => { if (!gyro) toggleGyro() }}
+              >GYRO</button>
+            </div>
+          </div>
+        )}
         <button className="settings-close" onClick={onClose}>CLOSE</button>
       </div>
     </div>
@@ -120,7 +140,7 @@ function Settings({ open, onClose }) {
 }
 
 export function Overlay() {
-  const { entered, enter, source, gyro, gyroSupported, toggleGyro, focused } = useAudio()
+  const { entered, enter, source, focused } = useAudio()
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   if (!entered) {
@@ -145,17 +165,6 @@ export function Overlay() {
             {source === 'catalog' ? 'crate catalog' : 'demo synth'} · click a computer
           </div>
         </div>
-      )}
-
-      {gyroSupported && !focused && (
-        <button
-          className={'gyro-btn' + (gyro ? ' on' : '')}
-          onClick={toggleGyro}
-          aria-pressed={gyro}
-          aria-label="Toggle gyro look"
-        >
-          {gyro ? '❚❚' : '◎'}
-        </button>
       )}
 
       {!focused && (

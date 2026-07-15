@@ -111,6 +111,42 @@ export class AudioEngine {
     }
   }
 
+  // Load a PRECOMPUTED spectrum sidecar (tools/precompute_fft.py) instead of
+  // re-downloading + decoding the whole track. Decoding a lossless track was a
+  // >100 MB memory spike at every transition that stalled background/lock-screen
+  // playback; the sidecar is a few MB and needs no decode. Falls back to
+  // on-the-fly analysis when the sidecar is missing (untagged/new tracks).
+  async _loadFrames(fftUrl, streamUrl, gen) {
+    this.analyzing = true
+    try {
+      const res = await fetch(fftUrl, { credentials: 'same-origin' })
+      if (!res.ok) throw new Error('HTTP ' + res.status)
+      const buf = await res.arrayBuffer()
+      if (gen !== this._analyzeGen) return
+      const dv = new DataView(buf)
+      // Header: "CFFT" u8 version u8 fps u16 fftSize u16 bins u32 nFrames.
+      if (dv.getUint8(0) !== 0x43 || dv.getUint8(1) !== 0x46 ||
+          dv.getUint8(2) !== 0x46 || dv.getUint8(3) !== 0x54) throw new Error('bad magic')
+      const fps = dv.getUint8(5)
+      const fftSize = dv.getUint16(6, true)
+      const bins = dv.getUint16(8, true)
+      const nFrames = dv.getUint32(10, true)
+      let off = 14
+      const freqLen = nFrames * bins
+      const timeLen = nFrames * fftSize
+      if (off + freqLen + timeLen > buf.byteLength) throw new Error('truncated sidecar')
+      const freqAll = new Uint8Array(buf, off, freqLen)
+      const timeAll = new Uint8Array(buf, off + freqLen, timeLen)
+      if (gen !== this._analyzeGen) return
+      this.frames = { fps, bins, fftSize, nFrames, freqAll, timeAll }
+      this.analyzing = false
+    } catch (e) {
+      if (gen !== this._analyzeGen) return
+      console.warn('fft sidecar unavailable, analyzing stream:', String(e && e.message || e))
+      this._analyzeStream(streamUrl, gen) // graceful fallback (fetch + decode)
+    }
+  }
+
   // Kick off (fetch -> decode -> worker FFT) for the current stream. Guarded
   // by `gen` throughout so a fast track skip discards stale work instead of
   // clobbering the frames for the track that's actually playing now.
@@ -162,7 +198,7 @@ export class AudioEngine {
     this.analyzing = false
   }
 
-  async playStream(url) {
+  async playStream(url, fftUrl = null) {
     this.stopSources()
     // Streams play ONLY through the native <audio> element. A running
     // AudioContext connected to `destination` would own the iOS audio session
@@ -207,10 +243,12 @@ export class AudioEngine {
       try { await this.audioEl.play() } catch (e2) { console.error('stream play failed', e2) }
     }
 
-    // Precompute the spectrum for visuals; update() falls back to zeros
-    // until frames arrive (or if analysis fails).
+    // Drive visuals from the precomputed sidecar when available (no decode);
+    // otherwise analyze the stream on the fly. update() shows zeros until frames
+    // arrive. Guarded by `gen` so a fast skip discards stale work.
     const gen = ++this._analyzeGen
-    this._analyzeStream(url, gen)
+    if (fftUrl) this._loadFrames(fftUrl, url, gen)
+    else this._analyzeStream(url, gen)
   }
 
   // Evolving pad + sub + hats, tuned by `seed`, routed into the analyser.

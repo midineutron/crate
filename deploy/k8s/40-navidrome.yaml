@@ -88,6 +88,11 @@ spec:
               value: "4533"
             - name: ND_LOGLEVEL
               value: info
+            # Report the real on-disk file path in Subsonic responses so the room
+            # can locate each track's precomputed .fft visualizer sidecar (which
+            # sits next to the audio file). See room/src/audio/catalog.js.
+            - name: ND_SUBSONIC_DEFAULTREPORTREALPATH
+              value: "true"
             # Cron-syntax library rescan. Ingest/tagging conventions land in #14.
             - name: ND_SCANNER_SCHEDULE
               value: "@every 1h"

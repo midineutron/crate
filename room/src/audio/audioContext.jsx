@@ -1,6 +1,6 @@
 import { createContext, useContext, useMemo, useState, useRef, useCallback, useEffect } from 'react'
 import { AudioEngine } from './AudioEngine'
-import { loadAssignments } from './catalog'
+import { loadAssignments, streamUrlFor } from './catalog'
 import { shades, RED } from '../palette'
 
 const Ctx = createContext(null)
@@ -69,9 +69,16 @@ export function AudioProvider({ children }) {
   const [active, setActive] = useState(null)
   const [playing, setPlaying] = useState(false)
   const [now, setNow] = useState({ time: 0, duration: 0 }) // control-bar scrubber
+  // Streaming quality: 'lossless' (format=raw) or 'lossy' (server-side MP3).
+  const [quality, setQualityState] = useState(() => {
+    try { const q = localStorage.getItem('crate-quality'); if (q === 'lossy' || q === 'lossless') return q } catch (e) {}
+    return 'lossless'
+  })
 
   const byScreenRef = useRef({})
   byScreenRef.current = byScreen
+  const qualityRef = useRef(quality)
+  qualityRef.current = quality
 
   // ---- gyroscope look-around (phones) ----
   const [gyro, setGyro] = useState(false)
@@ -108,7 +115,7 @@ export function AudioProvider({ children }) {
     const i = ((index % proj.tracks.length) + proj.tracks.length) % proj.tracks.length
     const track = proj.tracks[i]
     try {
-      if (track.streamUrl) await engine.playStream(track.streamUrl)
+      if (track.streamId) await engine.playStream(streamUrlFor(track.streamId, qualityRef.current), track.fftUrl)
       else await engine.playDemo((proj.seed || 0) + i)
       engine.activeId = screen
       setActive({ screen, index: i })
@@ -151,6 +158,25 @@ export function AudioProvider({ children }) {
   const seekFrac = useCallback((frac) => {
     if (engine.duration) engine.seek(frac * engine.duration)
   }, [engine])
+
+  // Switch streaming quality; if a stream is playing, reload it at the new
+  // format and restore position (frames are unchanged -- same original file).
+  const setQuality = useCallback((q) => {
+    if (q !== 'lossy' && q !== 'lossless') return
+    qualityRef.current = q
+    setQualityState(q)
+    try { localStorage.setItem('crate-quality', q) } catch (e) {}
+    if (engine.isStream && active) {
+      const proj = byScreenRef.current[active.screen]
+      const track = proj && proj.tracks[active.index]
+      if (track && track.streamId) {
+        const pos = engine.currentTime
+        engine.playStream(streamUrlFor(track.streamId, q), track.fftUrl)
+          .then(() => { if (pos > 0.5) engine.seek(pos) })
+          .catch(() => {})
+      }
+    }
+  }, [engine, active])
 
   const stop = useCallback(() => {
     engine.stopSources()
@@ -306,11 +332,12 @@ export function AudioProvider({ children }) {
       active, activeProject, activeTrack, playing, now, accent,
       playTrack, togglePlay, next, prev, seekFrac, stop,
       gyro, gyroSupported, toggleGyro,
+      quality, setQuality,
     }),
     [engine, source, entered, enter, byScreen, focused, focus, back, focusedProject,
      active, activeProject, activeTrack, playing, now, accent,
      playTrack, togglePlay, next, prev, seekFrac, stop,
-     gyro, gyroSupported, toggleGyro]
+     gyro, gyroSupported, toggleGyro, quality, setQuality]
   )
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

@@ -99,14 +99,30 @@ export function AudioProvider({ children }) {
     setGyro(true)
   }, [gyro])
 
-  // ---- catalog load on enter ----
-  const enter = useCallback(async () => {
-    await engine.resume()
+  // ---- catalog load ----
+  const catalogLoaded = useRef(false)
+  const loadCatalog = useCallback(async () => {
+    if (catalogLoaded.current) return
+    catalogLoaded.current = true
     const res = await loadAssignments()
     setByScreen(res.byScreen)
     setSource(res.source)
+  }, [])
+
+  const enter = useCallback(async () => {
+    await engine.resume()
+    await loadCatalog()
     setEntered(true)
-  }, [engine])
+  }, [engine, loadCatalog])
+
+  // Deep-link auto-enter (#enter): the veil (and its ENTER click that calls
+  // enter()) is skipped, so load the catalog on mount instead -- otherwise the
+  // room silently stays in demo-synth mode. No engine.resume() here: the
+  // AudioContext needs a user gesture on iOS and streams don't use it anyway;
+  // it resumes on the first play tap.
+  useEffect(() => {
+    if (entered) loadCatalog()
+  }, [entered, loadCatalog])
 
   // ---- transport ----
   const playTrack = useCallback(async (screen, index) => {
@@ -125,6 +141,27 @@ export function AudioProvider({ children }) {
       console.error('audio play failed', e)
     }
   }, [engine])
+
+  // Debug auto-play (?debug&autoplay): once the catalog is loaded, start the
+  // first streamable track automatically. For the iOS Simulator harness
+  // (tools/sim-test.sh) so background/lock-screen behaviour can be observed
+  // without a manual tap. No-op unless the flag is present. iOS may still
+  // require a gesture for the very first play() -- the HUD will show the retry.
+  const autoPlayed = useRef(false)
+  useEffect(() => {
+    if (autoPlayed.current) return
+    const dbg = typeof window !== 'undefined' &&
+      (/(^|[?&])autoplay\b/.test(window.location.search) ||
+        /(^|[#&])autoplay\b/.test(window.location.hash))
+    if (!dbg) return
+    const firstScreen = Object.keys(byScreen)[0]
+    const proj = firstScreen ? byScreen[firstScreen] : null
+    if (proj && proj.tracks.some((t) => t.streamId)) {
+      autoPlayed.current = true
+      const idx = proj.tracks.findIndex((t) => t.streamId)
+      playTrack(firstScreen, idx)
+    }
+  }, [byScreen, playTrack])
 
   const next = useCallback(() => {
     setActive((a) => {

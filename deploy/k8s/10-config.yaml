@@ -18,12 +18,15 @@ metadata:
   namespace: crate
 data:
   # External provider endpoints — PUBLIC URLs reachable from wherever this node
-  # runs. Replace <mycelium-public-host> with mycelium's public API host
-  # (the same base used by tools/register-mycelium.sh, e.g.
-  # https://api.mycelium.example.com). MUST NOT be a *.svc.cluster.local address.
+  # runs. mycelium's public API host is api.mycelium-network.io (the Traefik
+  # IngressRoute Host(`api.mycelium-network.io`) fronts the mycelium `backend`
+  # service on :8080, which serves /oauth/token and /.well-known/jwks.json — the
+  # same base used by tools/register-mycelium.sh). MUST NOT be a
+  # *.svc.cluster.local address (the placeholder that shipped here previously
+  # broke the keychain/NFC token exchange with "Failed to parse URL").
   # (Legacy MYCELIUM_TOKEN_URL / MYCELIUM_JWKS_URL names are still accepted.)
-  OAUTH_TOKEN_URL: "https://<mycelium-public-host>/oauth/token"
-  OAUTH_JWKS_URL:  "https://<mycelium-public-host>/.well-known/jwks.json"
+  OAUTH_TOKEN_URL: "https://api.mycelium-network.io/oauth/token"
+  OAUTH_JWKS_URL:  "https://api.mycelium-network.io/.well-known/jwks.json"
   REDIRECT_URI: "https://crates.mycelium-network.io/auth/callback"
   APP_ORIGIN:   "https://crates.mycelium-network.io"
   JWT_ISSUER: ""

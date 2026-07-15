@@ -17,13 +17,19 @@ metadata:
   name: crate-auth-config
   namespace: crate
 data:
-  # External provider endpoints — PUBLIC URLs reachable from wherever this node
-  # runs. Replace <mycelium-public-host> with mycelium's public API host
-  # (the same base used by tools/register-mycelium.sh, e.g.
-  # https://api.mycelium.example.com). MUST NOT be a *.svc.cluster.local address.
+  # External provider endpoints for crate-auth's SERVER-SIDE OAuth calls (token
+  # exchange + JWKS fetch). These use mycelium's in-cluster Service address, NOT
+  # the public host: the public host api.mycelium-network.io is fronted by
+  # Cloudflare with a bot/JS challenge ("Just a moment...") that returns 403 to
+  # any non-browser client, so a server-to-server POST from crate-auth can never
+  # complete the token exchange there. The in-cluster `backend` Service serves
+  # the same OAuth API on :8080 and bypasses Cloudflare entirely (verified: same
+  # JWKS signing key kid mycelium-key-1). Only works while mycelium runs in this
+  # cluster; if mycelium moves out, expose an origin-direct (un-challenged)
+  # hostname for it and point these there — do NOT use the CF-fronted public host.
   # (Legacy MYCELIUM_TOKEN_URL / MYCELIUM_JWKS_URL names are still accepted.)
-  OAUTH_TOKEN_URL: "https://<mycelium-public-host>/oauth/token"
-  OAUTH_JWKS_URL:  "https://<mycelium-public-host>/.well-known/jwks.json"
+  OAUTH_TOKEN_URL: "http://backend.mycelium.svc.cluster.local:8080/oauth/token"
+  OAUTH_JWKS_URL:  "http://backend.mycelium.svc.cluster.local:8080/.well-known/jwks.json"
   REDIRECT_URI: "https://crates.mycelium-network.io/auth/callback"
   APP_ORIGIN:   "https://crates.mycelium-network.io"
   JWT_ISSUER: ""

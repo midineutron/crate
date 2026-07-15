@@ -167,6 +167,15 @@ export function AudioProvider({ children }) {
   // Auto-advance on track end.
   useEffect(() => { engine.onEnded = next; return () => { engine.onEnded = null } }, [engine, next])
 
+  // Latest transport callbacks, mirrored into refs so the Media Session action
+  // handlers below can be registered ONCE and never churn. Re-registering them
+  // on every play/pause/track change left a window where a lock-screen skip hit
+  // a null handler and was dropped -- the cause of "skip doesn't always
+  // register" in the background.
+  const togglePlayRef = useRef(togglePlay); togglePlayRef.current = togglePlay
+  const nextRef = useRef(next); nextRef.current = next
+  const prevRef = useRef(prev); prevRef.current = prev
+
   // Poll transport time for the scrubber while a stream is playing.
   useEffect(() => {
     if (!playing || !engine.isStream) return
@@ -214,10 +223,10 @@ export function AudioProvider({ children }) {
     if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return
     const ms = navigator.mediaSession
     const handlers = [
-      ['play', () => togglePlay()],
-      ['pause', () => togglePlay()],
-      ['previoustrack', () => prev()],
-      ['nexttrack', () => next()],
+      ['play', () => togglePlayRef.current()],
+      ['pause', () => togglePlayRef.current()],
+      ['previoustrack', () => prevRef.current()],
+      ['nexttrack', () => nextRef.current()],
       ['seekto', (details) => {
         if (details && typeof details.seekTime === 'number') engine.seek(details.seekTime)
       }],
@@ -230,7 +239,9 @@ export function AudioProvider({ children }) {
         try { ms.setActionHandler(action, null) } catch (e) {}
       }
     }
-  }, [togglePlay, prev, next, engine])
+    // Registered once and left in place (handlers read latest via refs) so a
+    // background skip never lands on a torn-down handler.
+  }, [engine])
 
   useEffect(() => {
     if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return

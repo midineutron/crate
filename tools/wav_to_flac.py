@@ -37,6 +37,8 @@ from pathlib import Path
 
 from mutagen.flac import FLAC
 
+from precompute_fft import decode_mono, compute_frames, write_sidecar, sidecar_for
+
 SEP = ' - '
 DISC_TRACK_RE = re.compile(r'^(\d{1,2})-(\d{1,3})[ .\-]+(.+)$')  # "1-05 Title" -> disc 1, track 5
 TRACK_RE = re.compile(r'^(\d{1,3})[ .\-]+(.+)$')
@@ -107,6 +109,7 @@ def main():
     ap.add_argument('--artist', default='', help='fallback artist when the folder is not "<Artist> - <Album>"')
     ap.add_argument('--exclude', action='append', default=[],
                     help='skip any file whose relative path contains this component (repeatable), e.g. --exclude Unfinished')
+    ap.add_argument('--no-fft', action='store_true', help='skip the visualizer .fft sidecar (see precompute_fft.py)')
     ap.add_argument('--dry-run', action='store_true', help='print planned conversions/tags, write nothing')
     args = ap.parse_args()
 
@@ -143,6 +146,14 @@ def main():
             action = convert(wav, flac)
             counts[action] += 1
             tag(flac, artist, album, disc, track, title)
+            if not args.no_fft:
+                sc = sidecar_for(flac)
+                if action == 'encode' or not sc.is_file():
+                    try:
+                        samples, sr = decode_mono(flac)
+                        write_sidecar(sc, *compute_frames(samples, sr))
+                    except Exception as e:
+                        print(f'    fft failed: {e}')
 
     print()
     head = 'DRY RUN — ' if args.dry_run else ''

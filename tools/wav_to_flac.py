@@ -18,8 +18,9 @@ and gets a best-effort album (= its folder name) + title (= filename), but is
 flagged "review" so you can finish it in a tagger like Kid3.
 
 WAV is lossless in and FLAC is lossless out — no quality is lost. Keep the WAVs
-as the archival master. Idempotent: existing up-to-date FLACs are re-tagged, not
-re-encoded.
+as the archival master. Incremental: existing up-to-date FLACs are left untouched -- audio NOT re-encoded
+and tags NOT rewritten, so manual tag edits survive. Only newly encoded files are
+tagged; pass --retag to force-rewrite tags on every file.
 
 Usage:
     python3 tools/wav_to_flac.py SRC DST --artist "Midi Neutron"
@@ -79,7 +80,8 @@ def derive_tags(src_root, wav, default_artist):
 
 def convert(wav, flac):
     flac.parent.mkdir(parents=True, exist_ok=True)
-    # Skip re-encode if an up-to-date FLAC already exists (still re-tagged below).
+    # Skip re-encode if an up-to-date FLAC already exists (by default it is also
+    # left un-retagged -- see --retag).
     if flac.is_file() and flac.stat().st_mtime >= wav.stat().st_mtime:
         return 'skip'
     cmd = ['ffmpeg', '-y', '-loglevel', 'error', '-i', str(wav),
@@ -109,6 +111,10 @@ def main():
     ap.add_argument('--artist', default='', help='fallback artist when the folder is not "<Artist> - <Album>"')
     ap.add_argument('--exclude', action='append', default=[],
                     help='skip any file whose relative path contains this component (repeatable), e.g. --exclude Unfinished')
+    ap.add_argument('--retag', action='store_true',
+                    help='rewrite tags on ALL files, even ones not re-encoded '
+                         '(default: only tag freshly encoded files, so manual tag '
+                         'edits on existing FLACs are preserved)')
     ap.add_argument('--no-fft', action='store_true', help='skip the visualizer .fft sidecar (see precompute_fft.py)')
     ap.add_argument('--dry-run', action='store_true', help='print planned conversions/tags, write nothing')
     args = ap.parse_args()
@@ -145,7 +151,9 @@ def main():
         if not args.dry_run:
             action = convert(wav, flac)
             counts[action] += 1
-            tag(flac, artist, album, disc, track, title)
+            if action == 'encode' or args.retag:
+                tag(flac, artist, album, disc, track, title)
+                counts['tagged'] += 1
             if not args.no_fft:
                 sc = sidecar_for(flac)
                 if action == 'encode' or not sc.is_file():
@@ -157,8 +165,11 @@ def main():
 
     print()
     head = 'DRY RUN — ' if args.dry_run else ''
+    preserved = 0 if args.retag else counts["skip"]
     print(f'{head}{len(wavs)} files: {counts["clean"]} clean, {counts["review"]} need review'
-          + ('' if args.dry_run else f'  ({counts["encode"]} encoded, {counts["skip"]} already up to date)'))
+          + ('' if args.dry_run else
+             f'  ({counts["encode"]} encoded, {counts["skip"]} unchanged, '
+             f'{counts["tagged"]} tagged, {preserved} tags left as-is)'))
     print('albums:')
     for name, flags in sorted(albums.items()):
         n, c = len(flags), sum(flags)

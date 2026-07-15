@@ -94,7 +94,11 @@ async function albumsToProjects(albums) {
     if (!songs.length) continue
     songs.sort(
       (a, b) =>
-        (a.discNumber || 0) - (b.discNumber || 0) || (a.track || 0) - (b.track || 0),
+        (a.discNumber || 0) - (b.discNumber || 0) ||
+        (a.track || 0) - (b.track || 0) ||
+        // Deterministic fallback when tracks share (or lack) a number, so
+        // untagged albums list in a stable, sensible order instead of random.
+        (a.title || '').localeCompare(b.title || '', undefined, { numeric: true }),
     )
     projects.push({
       name: (album.name || 'untitled').toUpperCase(),

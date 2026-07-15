@@ -198,7 +198,14 @@ export class AudioEngine {
     // iOS keeps it alive in the background / with the screen locked.
     this.isStream = true
     this.audioEl.src = url
-    await this.audioEl.play()
+    // iOS occasionally rejects the first play() on a background src-swap (lock-
+    // screen skip / auto-advance). Retry once, and never throw -- the caller
+    // should still advance transport state so the next track isn't stranded.
+    try {
+      await this.audioEl.play()
+    } catch (e) {
+      try { await this.audioEl.play() } catch (e2) { console.error('stream play failed', e2) }
+    }
 
     // Precompute the spectrum for visuals; update() falls back to zeros
     // until frames arrive (or if analysis fails).

@@ -86,6 +86,7 @@ function trackRecord(s, album) {
     name: (s.title || 'untitled').toUpperCase(),
     artist: s.artist || '',
     dur: fmtDur(s.duration),
+    durSec: s.duration || 0,
     streamId: s.id,
     artUrl: coverId
       ? restUrl('getCoverArt', { id: coverId, size: '512' }, { binary: true })
@@ -183,6 +184,7 @@ function demoCatalog() {
       name: ['DRIFT', 'PULSE', 'ECHO', 'FRACTURE', 'HORIZON', 'VAPOR'][ti % 6] + ' ' + (ti + 1),
       artist: '',
       dur: fmtDur(120 + ti * 37 + pi * 11),
+      durSec: 120 + ti * 37 + pi * 11,
       streamId: null, // demo synth
       artUrl: null, // generated tile
       fftUrl: null, // live analyser (demo path)

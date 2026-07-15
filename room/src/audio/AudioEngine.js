@@ -20,6 +20,9 @@ export class AudioEngine {
     this.treble = 0    // high band 0..1
     this.isStream = false // true while an <audio> stream is the source (vs demo)
     this.onEnded = null   // called when a stream track finishes (auto-advance)
+    this.knownDuration = 0 // authoritative track length (Subsonic); audioEl.duration
+                           // is Infinity/NaN for transcoded (no Content-Length) streams
+    this._ended = false    // guards the auto-advance so it fires once per track
 
     // Precomputed stream analysis (see analyze.worker.js). `frames` is
     // { fps, bins, fftSize, nFrames, freqAll, timeAll } -- flat, frame-major
@@ -35,7 +38,7 @@ export class AudioEngine {
   get currentTime() { return this.audioEl ? this.audioEl.currentTime : 0 }
   get duration() {
     const d = this.audioEl && this.audioEl.duration
-    return isFinite(d) ? d : 0
+    return isFinite(d) && d > 0 ? d : (this.knownDuration || 0)
   }
   get paused() { return this.audioEl ? this.audioEl.paused : true }
 
@@ -198,7 +201,7 @@ export class AudioEngine {
     this.analyzing = false
   }
 
-  async playStream(url, fftUrl = null) {
+  async playStream(url, fftUrl = null, durationSec = 0) {
     this.stopSources()
     // Streams play ONLY through the native <audio> element. A running
     // AudioContext connected to `destination` would own the iOS audio session
@@ -226,13 +229,24 @@ export class AudioEngine {
       if (typeof document !== 'undefined' && document.body) {
         document.body.appendChild(this.audioEl)
       }
-      this.audioEl.addEventListener('ended', () => {
-        if (this.isStream && typeof this.onEnded === 'function') this.onEnded()
+      const advance = () => {
+        if (!this.isStream || this._ended || typeof this.onEnded !== 'function') return
+        this._ended = true
+        this.onEnded()
+      }
+      this.audioEl.addEventListener('ended', advance)
+      // Some streams (transcoded / no Content-Length) don't fire 'ended'. If the
+      // element reports finished, or overruns the known length, advance anyway.
+      this.audioEl.addEventListener('timeupdate', () => {
+        if (this._ended || !this.knownDuration) return
+        if (this.audioEl.ended || this.audioEl.currentTime >= this.knownDuration + 0.5) advance()
       })
     }
     // Play natively (default output) -- NOT routed through Web Audio, so
     // iOS keeps it alive in the background / with the screen locked.
     this.isStream = true
+    this.knownDuration = durationSec || 0
+    this._ended = false
     this.audioEl.src = url
     // iOS occasionally rejects the first play() on a background src-swap (lock-
     // screen skip / auto-advance). Retry once, and never throw -- the caller

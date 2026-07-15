@@ -41,6 +41,21 @@ async function restJson(view, params) {
   return sub
 }
 
+// Derive the precomputed visualizer sidecar URL from a track's real file path.
+// With ND_SUBSONIC_DEFAULTREPORTREALPATH=true, Navidrome reports the on-disk
+// path; the `.fft` sidecar (tools/precompute_fft.py) sits next to the audio file
+// under the library's audio/ tree, which nginx serves same-origin. Returns null
+// when the path is absent/fake (falls back to on-the-fly analysis).
+function fftUrlFromPath(path) {
+  if (!path) return null
+  const i = path.indexOf('/audio/')
+  if (i < 0) return null
+  const rel = path.slice(i)
+  const dot = rel.lastIndexOf('.')
+  const base = dot > rel.lastIndexOf('/') ? rel.slice(0, dot) : rel
+  return encodeURI(base + '.fft')
+}
+
 function fmtDur(sec) {
   if (!sec || !isFinite(sec)) return ''
   const m = Math.floor(sec / 60)
@@ -63,6 +78,7 @@ function trackRecord(s, album) {
     artUrl: coverId
       ? restUrl('getCoverArt', { id: coverId, size: '512' }, { binary: true })
       : null,
+    fftUrl: fftUrlFromPath(s.path),
   }
 }
 
@@ -157,6 +173,7 @@ function demoCatalog() {
       dur: fmtDur(120 + ti * 37 + pi * 11),
       streamUrl: null, // demo synth
       artUrl: null, // generated tile
+      fftUrl: null, // live analyser (demo path)
     })),
   }))
   return assign(projects)

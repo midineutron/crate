@@ -38,11 +38,12 @@ from pathlib import Path
 from mutagen.flac import FLAC
 
 SEP = ' - '
+DISC_TRACK_RE = re.compile(r'^(\d{1,2})-(\d{1,3})[ .\-]+(.+)$')  # "1-05 Title" -> disc 1, track 5
 TRACK_RE = re.compile(r'^(\d{1,3})[ .\-]+(.+)$')
 
 
 def derive_tags(src_root, wav, default_artist):
-    """(artist, album, track|None, title, clean) from folder + filename."""
+    """(artist, album, disc|None, track|None, title, clean) from folder + filename."""
     parent = wav.parent.name
     stem = wav.stem
     if SEP in parent:
@@ -59,14 +60,19 @@ def derive_tags(src_root, wav, default_artist):
             rest = rest[len(prefix):]
             break
 
-    m = TRACK_RE.match(rest)
-    if m:
-        track, title = int(m.group(1)), m.group(2).strip()
+    dm = DISC_TRACK_RE.match(rest)
+    if dm:
+        disc, track, title = int(dm.group(1)), int(dm.group(2)), dm.group(3).strip()
     else:
-        track, title = None, rest.strip()
+        disc = None
+        m = TRACK_RE.match(rest)
+        if m:
+            track, title = int(m.group(1)), m.group(2).strip()
+        else:
+            track, title = None, rest.strip()
 
     clean = folder_is_album and track is not None and bool(title)
-    return artist, album, track, title, clean
+    return artist, album, disc, track, title, clean
 
 
 def convert(wav, flac):
@@ -80,13 +86,15 @@ def convert(wav, flac):
     return 'encode'
 
 
-def tag(flac, artist, album, track, title):
+def tag(flac, artist, album, disc, track, title):
     f = FLAC(str(flac))
     f['ALBUM'] = album
     f['TITLE'] = title
     if artist:
         f['ARTIST'] = artist
         f['ALBUMARTIST'] = artist
+    if disc is not None:
+        f['DISCNUMBER'] = str(disc)
     if track is not None:
         f['TRACKNUMBER'] = str(track)
     f.save()
@@ -123,10 +131,10 @@ def main():
     for wav in wavs:
         rel = wav.relative_to(src)
         flac = (dst / rel).with_suffix('.flac')
-        artist, album, track, title, clean = derive_tags(src, wav, args.artist)
+        artist, album, disc, track, title, clean = derive_tags(src, wav, args.artist)
         albums[album].append(clean)
         counts['clean' if clean else 'review'] += 1
-        numlabel = f'{track:02d}' if track is not None else '--'
+        numlabel = (f'{disc}-' if disc is not None else '') + (f'{track:02d}' if track is not None else '--')
         flag = '' if clean else '  << review'
         print(f'  [{album}] {numlabel} {title}{flag}')
         if not clean:
@@ -134,7 +142,7 @@ def main():
         if not args.dry_run:
             action = convert(wav, flac)
             counts[action] += 1
-            tag(flac, artist, album, track, title)
+            tag(flac, artist, album, disc, track, title)
 
     print()
     head = 'DRY RUN — ' if args.dry_run else ''

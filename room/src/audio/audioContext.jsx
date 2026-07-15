@@ -115,7 +115,8 @@ export function AudioProvider({ children }) {
     const i = ((index % proj.tracks.length) + proj.tracks.length) % proj.tracks.length
     const track = proj.tracks[i]
     try {
-      if (track.streamId) await engine.playStream(streamUrlFor(track.streamId, qualityRef.current), track.fftUrl)
+      setNow({ time: 0, duration: track.durSec || 0 })
+      if (track.streamId) await engine.playStream(streamUrlFor(track.streamId, qualityRef.current), track.fftUrl, track.durSec)
       else await engine.playDemo((proj.seed || 0) + i)
       engine.activeId = screen
       setActive({ screen, index: i })

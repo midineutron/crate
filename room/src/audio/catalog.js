@@ -29,6 +29,18 @@ function restUrl(view, params = {}, { binary = false } = {}) {
   return '/rest/' + view + '.view?' + q.toString()
 }
 
+// Stream URL for a track id at the requested quality. Lossless = untranscoded
+// (format=raw), so the precomputed FFT timeline matches exactly; lossy = a
+// server-side MP3 transcode (much smaller for cellular). Frames index by
+// currentTime, so the small transcode timeline drift is tolerable.
+export function streamUrlFor(id, quality) {
+  const params =
+    quality === 'lossy'
+      ? { id, format: 'mp3', maxBitRate: '192' }
+      : { id, format: 'raw' }
+  return restUrl('stream', params, { binary: true })
+}
+
 async function restJson(view, params) {
   const res = await fetch(restUrl(view, params), { credentials: 'include' })
   if (!res.ok) throw new Error(view + ' HTTP ' + res.status)
@@ -74,7 +86,7 @@ function trackRecord(s, album) {
     name: (s.title || 'untitled').toUpperCase(),
     artist: s.artist || '',
     dur: fmtDur(s.duration),
-    streamUrl: restUrl('stream', { id: s.id, format: 'raw' }, { binary: true }),
+    streamId: s.id,
     artUrl: coverId
       ? restUrl('getCoverArt', { id: coverId, size: '512' }, { binary: true })
       : null,
@@ -171,7 +183,7 @@ function demoCatalog() {
       name: ['DRIFT', 'PULSE', 'ECHO', 'FRACTURE', 'HORIZON', 'VAPOR'][ti % 6] + ' ' + (ti + 1),
       artist: '',
       dur: fmtDur(120 + ti * 37 + pi * 11),
-      streamUrl: null, // demo synth
+      streamId: null, // demo synth
       artUrl: null, // generated tile
       fftUrl: null, // live analyser (demo path)
     })),

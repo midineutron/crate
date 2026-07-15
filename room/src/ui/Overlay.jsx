@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useAudio } from '../audio/audioContext'
 import { shades, RED } from '../palette'
 
@@ -83,8 +84,44 @@ function Transport() {
   )
 }
 
+// Settings modal (audio quality). Opened from the gear by the gyro control.
+function Settings({ open, onClose }) {
+  const { quality, setQuality } = useAudio()
+  if (!open) return null
+  return (
+    <div className="settings-veil" onClick={onClose}>
+      <div className="settings-panel" onClick={(e) => e.stopPropagation()}>
+        <div className="settings-head">
+          <span className="term-os">CRATE OS</span>
+          <span className="settings-title">SETTINGS</span>
+        </div>
+        <div className="settings-row">
+          <div className="settings-label">
+            AUDIO
+            <small>lossless keeps full quality · lossy uses less data</small>
+          </div>
+          <div className="settings-seg" role="group" aria-label="Audio quality">
+            <button
+              className={quality === 'lossless' ? 'on' : ''}
+              aria-pressed={quality === 'lossless'}
+              onClick={() => setQuality('lossless')}
+            >LOSSLESS</button>
+            <button
+              className={quality === 'lossy' ? 'on' : ''}
+              aria-pressed={quality === 'lossy'}
+              onClick={() => setQuality('lossy')}
+            >LOSSY</button>
+          </div>
+        </div>
+        <button className="settings-close" onClick={onClose}>CLOSE</button>
+      </div>
+    </div>
+  )
+}
+
 export function Overlay() {
   const { entered, enter, source, gyro, gyroSupported, toggleGyro, focused } = useAudio()
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   if (!entered) {
     return (
@@ -121,6 +158,15 @@ export function Overlay() {
         </button>
       )}
 
+      {!focused && (
+        <button
+          className="settings-btn"
+          onClick={() => setSettingsOpen(true)}
+          aria-label="Settings"
+        >⚙</button>
+      )}
+
+      <Settings open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <Terminal />
       <Transport />
     </>

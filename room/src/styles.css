@@ -140,3 +140,50 @@ canvas { display: block; }
 .gyro-btn.on {
   border-color: var(--accent); color: var(--accent); box-shadow: 0 0 18px rgba(var(--accent-rgb),0.4);
 }
+
+/* ---- Settings gear (stacked above the gyro control) ---- */
+.settings-btn {
+  position: fixed; z-index: 6; right: 20px; bottom: 64px; pointer-events: auto;
+  background: rgba(10,6,7,0.6); border: 1px solid var(--accent-dim); color: var(--accent-mid);
+  width: 42px; height: 42px; font: inherit; font-size: 16px; line-height: 1;
+  cursor: pointer; backdrop-filter: blur(4px); transition: all 0.2s;
+}
+.settings-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ---- Settings modal ---- */
+.settings-veil {
+  position: fixed; inset: 0; z-index: 12; pointer-events: auto;
+  display: grid; place-items: center;
+  background: rgba(6,3,4,0.72); backdrop-filter: blur(3px);
+}
+.settings-panel {
+  width: min(420px, 90vw);
+  background: linear-gradient(180deg, rgba(20,10,11,0.96), rgba(10,6,7,0.96));
+  border: 1px solid var(--accent-dim); box-shadow: 0 0 40px rgba(var(--accent-rgb), 0.15);
+  padding: 22px; color: #e9dede;
+  font-size: 12px; letter-spacing: 0.12em;
+}
+.settings-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  border-bottom: 1px solid var(--accent-dim); padding-bottom: 12px; margin-bottom: 18px;
+}
+.settings-title { color: var(--accent-mid); letter-spacing: 0.24em; }
+.settings-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.settings-label { display: flex; flex-direction: column; gap: 6px; letter-spacing: 0.2em; }
+.settings-label small { color: #9a8f8f; font-size: 10px; letter-spacing: 0.06em; text-transform: none; }
+.settings-seg { display: flex; border: 1px solid var(--accent-dim); }
+.settings-seg button {
+  background: transparent; border: none; color: var(--accent-mid);
+  padding: 9px 12px; font: inherit; font-size: 11px; letter-spacing: 0.16em;
+  cursor: pointer; transition: all 0.15s;
+}
+.settings-seg button + button { border-left: 1px solid var(--accent-dim); }
+.settings-seg button:hover { color: var(--accent); }
+.settings-seg button.on { background: var(--accent); color: #0a0607; }
+.settings-close {
+  margin-top: 22px; width: 100%; background: transparent;
+  border: 1px solid var(--accent-dim); color: var(--accent-mid);
+  padding: 10px; font: inherit; font-size: 11px; letter-spacing: 0.2em; cursor: pointer;
+  transition: all 0.15s;
+}
+.settings-close:hover { border-color: var(--accent); color: var(--accent); }

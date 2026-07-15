@@ -32,6 +32,43 @@ export class AudioEngine {
     this.worker = null
     this._analyzeGen = 0 // bumped on every stopSources()/new stream so stale
                           // fetch/decode/worker results are ignored
+
+    // ---- debug instrumentation (surfaced by the #debug HUD) ----
+    // frameSource records which visual-data path the CURRENT stream took:
+    // 'sidecar' = precomputed .fft (fast, no decode); 'decode' = the heavy
+    // fetch-whole-file + decodeAudioData fallback (the iOS background-stall
+    // path); 'pending'/'none' otherwise. events is a small ring buffer of
+    // transport milestones (advance, play retries/failures) so background
+    // behaviour is legible on-device without a remote debugger.
+    this.frameSource = 'none'
+    this.events = []
+  }
+
+  _log(msg) {
+    // Keep the last ~20 milestones; timestamps are wall-clock ms for ordering.
+    const t = (typeof performance !== 'undefined' ? performance.now() : 0) | 0
+    this.events.push(t + 'ms ' + msg)
+    if (this.events.length > 20) this.events.shift()
+  }
+
+  // Snapshot consumed by the debug HUD (see ui/DebugHud.jsx).
+  debugState() {
+    const a = this.audioEl
+    return {
+      isStream: this.isStream,
+      frameSource: this.frameSource,
+      analyzing: this.analyzing,
+      framesLoaded: !!this.frames,
+      nFrames: this.frames ? this.frames.nFrames : 0,
+      ctxState: this.ctx ? this.ctx.state : 'none',
+      elPaused: a ? a.paused : true,
+      elEnded: a ? a.ended : false,
+      elTime: a ? a.currentTime : 0,
+      elDur: a ? a.duration : 0,
+      knownDuration: this.knownDuration,
+      hidden: typeof document !== 'undefined' ? document.hidden : false,
+      events: this.events.slice(-8),
+    }
   }
 
   // Transport readouts for the control bar (seconds; 0 when unknown).
@@ -142,10 +179,13 @@ export class AudioEngine {
       const timeAll = new Uint8Array(buf, off + freqLen, timeLen)
       if (gen !== this._analyzeGen) return
       this.frames = { fps, bins, fftSize, nFrames, freqAll, timeAll }
+      this.frameSource = 'sidecar'
       this.analyzing = false
+      this._log('sidecar ok (' + nFrames + 'f)')
     } catch (e) {
       if (gen !== this._analyzeGen) return
       console.warn('fft sidecar unavailable, analyzing stream:', String(e && e.message || e))
+      this._log('sidecar FAIL -> decode: ' + String(e && e.message || e))
       this._analyzeStream(streamUrl, gen) // graceful fallback (fetch + decode)
     }
   }
@@ -155,6 +195,7 @@ export class AudioEngine {
   // clobbering the frames for the track that's actually playing now.
   async _analyzeStream(url, gen) {
     this.analyzing = true
+    this.frameSource = 'decode'
     try {
       const res = await fetch(url, { credentials: 'same-origin' })
       const arrayBuffer = await res.arrayBuffer()
@@ -199,6 +240,7 @@ export class AudioEngine {
     this._analyzeGen++
     this.frames = null
     this.analyzing = false
+    this.frameSource = 'none'
   }
 
   async playStream(url, fftUrl = null, durationSec = 0) {
@@ -229,17 +271,18 @@ export class AudioEngine {
       if (typeof document !== 'undefined' && document.body) {
         document.body.appendChild(this.audioEl)
       }
-      const advance = () => {
+      const advance = (why) => {
         if (!this.isStream || this._ended || typeof this.onEnded !== 'function') return
         this._ended = true
+        this._log('advance (' + why + ')')
         this.onEnded()
       }
-      this.audioEl.addEventListener('ended', advance)
+      this.audioEl.addEventListener('ended', () => advance('ended'))
       // Some streams (transcoded / no Content-Length) don't fire 'ended'. If the
       // element reports finished, or overruns the known length, advance anyway.
       this.audioEl.addEventListener('timeupdate', () => {
         if (this._ended || !this.knownDuration) return
-        if (this.audioEl.ended || this.audioEl.currentTime >= this.knownDuration + 0.5) advance()
+        if (this.audioEl.ended || this.audioEl.currentTime >= this.knownDuration + 0.5) advance('overrun')
       })
     }
     // Play natively (default output) -- NOT routed through Web Audio, so
@@ -247,14 +290,17 @@ export class AudioEngine {
     this.isStream = true
     this.knownDuration = durationSec || 0
     this._ended = false
+    this.frameSource = fftUrl ? 'pending' : 'decode'
     this.audioEl.src = url
+    this._log('play ' + (fftUrl ? 'sidecar' : 'decode') + ' d=' + (durationSec | 0))
     // iOS occasionally rejects the first play() on a background src-swap (lock-
     // screen skip / auto-advance). Retry once, and never throw -- the caller
     // should still advance transport state so the next track isn't stranded.
     try {
       await this.audioEl.play()
     } catch (e) {
-      try { await this.audioEl.play() } catch (e2) { console.error('stream play failed', e2) }
+      this._log('play() retry')
+      try { await this.audioEl.play() } catch (e2) { this._log('play() FAILED'); console.error('stream play failed', e2) }
     }
 
     // Drive visuals from the precomputed sidecar when available (no decode);

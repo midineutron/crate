@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useAudio } from '../audio/audioContext'
 import { shades, RED } from '../palette'
+import { DebugHud } from './DebugHud'
 
 function fmt(sec) {
   if (!sec || !isFinite(sec)) return '0:00'
@@ -178,6 +179,7 @@ export function Overlay() {
       <Settings open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <Terminal />
       <Transport />
+      <DebugHud />
     </>
   )
 }

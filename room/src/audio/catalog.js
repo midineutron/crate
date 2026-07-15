@@ -17,7 +17,21 @@
 import { SCREENS } from '../config/projects'
 
 const API_VERSION = '1.16.1'
-const CLIENT = 'crate'
+// Subsonic client name. Navidrome creates one *player* per (user, client) and
+// each player has its own `reportRealPath` flag, seeded ONCE from
+// ND_SUBSONIC_DEFAULTREPORTREALPATH at the moment the player is first created —
+// changing the env later does NOT touch existing players. The original `crate`
+// player was registered before that env was set, so it is pinned to
+// reportRealPath=false and returns SYNTHETIC tag paths (`<artist>/<album>/NN -
+// title.flac`) with no `/audio/` prefix — which made fftUrlFromPath() return
+// null for every track, so the precomputed sidecar was never used and every
+// track change fell back to fetch-whole-file + decodeAudioData (the >100 MB
+// iOS memory spike that stalls background/lock-screen playback). Bumping the
+// client string mints a fresh player that inherits the current default
+// (reportRealPath=true) and reports the real `/music/audio/...` path, which
+// fftUrlFromPath() already handles. Bump the suffix again if the flag ever
+// needs re-seeding. See GitHub #11.
+const CLIENT = 'crate-room'
 const USER = 'crate' // matches the Remote-User identity injected at the gate
 
 // Build a /rest/ URL. JSON endpoints get f=json; binary endpoints (stream,

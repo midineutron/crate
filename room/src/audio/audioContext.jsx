@@ -170,6 +170,25 @@ export function AudioProvider({ children }) {
     }
   }, [byScreen, playTrack])
 
+  // Debug auto-save (?autosave): once the catalog is loaded, download the first
+  // streamable project offline hands-off, for the iOS Simulator offline harness
+  // (tools/sim-offline-test.sh). No-op unless the flag is present. Defined after
+  // saveOffline below via a ref so ordering doesn't matter.
+  const autoSaved = useRef(false)
+  const saveOfflineRef = useRef(null)
+  useEffect(() => {
+    if (autoSaved.current) return
+    const dbg = typeof window !== 'undefined' &&
+      (/(^|[?&])autosave\b/.test(window.location.search) ||
+        /(^|[#&])autosave\b/.test(window.location.hash))
+    if (!dbg) return
+    const firstScreen = Object.keys(byScreen).find((sc) => byScreen[sc].tracks.some((t) => t.streamId))
+    if (firstScreen && saveOfflineRef.current) {
+      autoSaved.current = true
+      saveOfflineRef.current(firstScreen)
+    }
+  }, [byScreen])
+
   const next = useCallback(() => {
     setActive((a) => {
       if (!a) return a
@@ -232,6 +251,17 @@ export function AudioProvider({ children }) {
     setNow({ time: 0, duration: 0 })
   }, [engine])
 
+  // Debug quality override (?lossy / ?lossless): deep-link the stream quality so
+  // the offline harness can save the small (mp3) variant without tapping the
+  // gear in the simulator. Runs before ?autosave fires (setQuality updates
+  // qualityRef synchronously). No-op unless the flag is present.
+  const qualityForced = useRef(false)
+  useEffect(() => {
+    if (qualityForced.current || typeof window === 'undefined') return
+    const m = /(^|[?&])(lossy|lossless)\b/.exec(window.location.search)
+    if (m) { qualityForced.current = true; setQuality(m[2]) }
+  }, [setQuality])
+
   // Download the focused project for offline playback at the CURRENT quality.
   // Progress drives the terminal button; the service worker serves the saved
   // bytes back on playback (no change to playTrack's URLs). No-op mid-save or
@@ -252,6 +282,8 @@ export function AudioProvider({ children }) {
       setSaveProgress(null)
     }
   }, [saveProgress])
+
+  saveOfflineRef.current = saveOffline
 
   const removeOffline = useCallback(async (screen) => {
     await deleteProject(screen)

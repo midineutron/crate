@@ -91,17 +91,19 @@ canvas { display: block; }
 }
 .term-back:hover { background: var(--accent); color: #0a0607; box-shadow: 0 0 22px rgba(var(--accent-rgb),0.55); }
 .term-count { color: var(--accent-dim); font-size: 11px; letter-spacing: 0.25em; white-space: nowrap; }
-/* ---- save-offline button (mirrors .term-back, slightly quieter) ---- */
+/* ---- offline toggle (icon-only, Google-Drive-style; fill = availability) ---- */
 .term-save {
-  background: transparent; border: 1px solid rgba(var(--accent-rgb),0.55); color: var(--accent);
-  padding: 8px 16px; font: inherit; font-size: 11px; letter-spacing: 0.25em; white-space: nowrap;
-  cursor: pointer; transition: all 0.15s;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: 50%;
+  background: transparent; border: 1px solid rgba(var(--accent-rgb),0.4);
+  color: rgba(var(--accent-rgb),0.7); font: inherit; font-size: 18px; line-height: 1;
+  cursor: pointer; transition: all 0.15s; flex: 0 0 auto;
 }
-.term-save:hover:not([disabled]) { border-color: var(--accent); background: var(--accent); color: #0a0607; box-shadow: 0 0 18px rgba(var(--accent-rgb),0.5); }
-.term-save.saved { background: var(--accent); color: #0a0607; border-color: var(--accent); }
-.term-save.saved:hover { background: transparent; color: var(--accent); box-shadow: none; }
-.term-save.partial { border-style: dashed; color: var(--accent); }
-.term-save[disabled] { opacity: 0.6; cursor: default; border-style: dashed; }
+.term-save:hover:not([disabled]) { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 16px rgba(var(--accent-rgb),0.45); }
+.term-save.saved { color: var(--accent); border-color: var(--accent); }
+.term-save.partial { color: var(--accent); border-style: dashed; }
+.term-save.saving { color: var(--accent); border-style: dashed; }
+.term-save[disabled] { opacity: 0.7; cursor: default; }
 
 /* ---- transport bar ---- */
 .transport {

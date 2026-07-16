@@ -64,25 +64,33 @@ function Terminal() {
         <button className="term-back" onClick={back}>◀ BACK</button>
         {canSave && (
           prog ? (
-            <button className="term-save" disabled>SAVING {prog.done}/{prog.total}</button>
+            <button
+              className="term-save saving"
+              disabled
+              aria-label={'Saving for offline (' + prog.done + '/' + prog.total + ')'}
+              title={'Saving for offline… ' + prog.done + '/' + prog.total}
+            >◐</button>
           ) : savedEntry && savedEntry.partial ? (
             <button
               className="term-save partial"
               onClick={() => saveOffline(proj.screen)}
+              aria-label={'Partly available offline (' + savedEntry.trackCount + '/' + savedEntry.expected + '), tap to finish'}
               title={'Partly saved (' + savedEntry.trackCount + '/' + savedEntry.expected + ') · tap to finish'}
-            >↻ {savedEntry.trackCount}/{savedEntry.expected}</button>
+            >◑</button>
           ) : savedEntry ? (
             <button
               className="term-save saved"
               onClick={() => removeOffline(proj.screen)}
-              title={'Saved offline' + (savedEntry.bytes ? ' · ' + fmtBytes(savedEntry.bytes) : '') + ' · tap to remove'}
-            >◆ OFFLINE</button>
+              aria-label="Available offline, tap to remove"
+              title={'Available offline' + (savedEntry.bytes ? ' · ' + fmtBytes(savedEntry.bytes) : '') + ' · tap to remove'}
+            >◉</button>
           ) : (
             <button
               className="term-save"
               onClick={() => saveOffline(proj.screen)}
-              title="Download this project for offline playback"
-            >↓ SAVE OFFLINE</button>
+              aria-label="Make available offline"
+              title="Make this project available offline"
+            >◎</button>
           )
         )}
         <span className="term-count">{proj.tracks.length} TRACKS</span>

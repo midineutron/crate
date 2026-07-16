@@ -96,7 +96,10 @@ export async function saveProject(project, quality, onProgress) {
   const expected = project.tracks.filter((t) => t.streamId).length
   const cache = await caches.open(MEDIA_CACHE)
   const keys = []
-  let done = 0
+  // Progress is counted in TRACKS, not assets: each track pulls a stream plus
+  // optional fft/art sidecars, so an asset-based total (e.g. 29 for 14 tracks)
+  // reads as wrong next to the track list. Tick once per stream asset.
+  let tracksDone = 0
   let bytes = 0
 
   // Provisional index entry up front so an interruption leaves a removable
@@ -107,7 +110,7 @@ export async function saveProject(project, quality, onProgress) {
     bytes: 0, savedAt: Date.now(), partial: true, keys,
   }
   writeIndex(idx)
-  if (onProgress) onProgress({ done: 0, total: assets.length })
+  if (onProgress) onProgress({ done: 0, total: expected })
 
   const commit = (key, size) => {
     if (keys.indexOf(key) === -1) keys.push(key)
@@ -133,8 +136,12 @@ export async function saveProject(project, quality, onProgress) {
       // Tolerate individual asset failures (a missing sidecar still plays; the
       // visualizer falls back). A total audio failure is caught below.
     }
-    done++
-    if (onProgress) onProgress({ done, total: assets.length })
+    // Advance the track counter only on stream assets so progress tracks tracks,
+    // not sidecars — sidecars/art land silently between ticks.
+    if (isStreamKey(a.key)) {
+      tracksDone++
+      if (onProgress) onProgress({ done: tracksDone, total: expected })
+    }
   }
 
   const streamsSaved = keys.filter(isStreamKey).length

@@ -36,6 +36,37 @@ function Terminal() {
   const savedEntry = savedOffline && savedOffline[proj.screen]
   const canSave = offlineSupported() && proj.tracks.some((t) => t.streamId)
   const prog = saveProgress && saveProgress.screen === proj.screen ? saveProgress : null
+  const offlineBtn = !canSave ? null : (
+    prog ? (
+      <button
+        className="term-save saving"
+        disabled
+        aria-label={'Saving for offline (' + prog.done + '/' + prog.total + ')'}
+        title={'Saving for offline… ' + prog.done + '/' + prog.total}
+      >◐</button>
+    ) : savedEntry && savedEntry.partial ? (
+      <button
+        className="term-save partial"
+        onClick={() => saveOffline(proj.screen)}
+        aria-label={'Partly available offline (' + savedEntry.trackCount + '/' + savedEntry.expected + '), tap to finish'}
+        title={'Partly saved (' + savedEntry.trackCount + '/' + savedEntry.expected + ') · tap to finish'}
+      >◑</button>
+    ) : savedEntry ? (
+      <button
+        className="term-save saved"
+        onClick={() => removeOffline(proj.screen)}
+        aria-label="Available offline, tap to remove"
+        title={'Available offline' + (savedEntry.bytes ? ' · ' + fmtBytes(savedEntry.bytes) : '') + ' · tap to remove'}
+      >◉</button>
+    ) : (
+      <button
+        className="term-save"
+        onClick={() => saveOffline(proj.screen)}
+        aria-label="Make available offline"
+        title="Make this project available offline"
+      >◎</button>
+    )
+  )
   return (
     <div className={'terminal' + (active ? ' with-transport' : '')} style={style}>
       <div className="term-scan" />
@@ -43,7 +74,10 @@ function Terminal() {
         <span className="term-os">CRATE OS</span>
         <span className="term-kind">{proj.kind === 'album' ? 'ALBUM' : 'MIX'}</span>
       </div>
-      <div className="term-title">{proj.name}</div>
+      <div className="term-title-row">
+        <div className="term-title">{proj.name}</div>
+        {offlineBtn}
+      </div>
       <div className="term-rows">
         {proj.tracks.map((t, i) => {
           const isActive = active && active.screen === focused && active.index === i
@@ -62,37 +96,6 @@ function Terminal() {
       </div>
       <div className="term-foot">
         <button className="term-back" onClick={back}>◀ BACK</button>
-        {canSave && (
-          prog ? (
-            <button
-              className="term-save saving"
-              disabled
-              aria-label={'Saving for offline (' + prog.done + '/' + prog.total + ')'}
-              title={'Saving for offline… ' + prog.done + '/' + prog.total}
-            >◐</button>
-          ) : savedEntry && savedEntry.partial ? (
-            <button
-              className="term-save partial"
-              onClick={() => saveOffline(proj.screen)}
-              aria-label={'Partly available offline (' + savedEntry.trackCount + '/' + savedEntry.expected + '), tap to finish'}
-              title={'Partly saved (' + savedEntry.trackCount + '/' + savedEntry.expected + ') · tap to finish'}
-            >◑</button>
-          ) : savedEntry ? (
-            <button
-              className="term-save saved"
-              onClick={() => removeOffline(proj.screen)}
-              aria-label="Available offline, tap to remove"
-              title={'Available offline' + (savedEntry.bytes ? ' · ' + fmtBytes(savedEntry.bytes) : '') + ' · tap to remove'}
-            >◉</button>
-          ) : (
-            <button
-              className="term-save"
-              onClick={() => saveOffline(proj.screen)}
-              aria-label="Make available offline"
-              title="Make this project available offline"
-            >◎</button>
-          )
-        )}
         <span className="term-count">{proj.tracks.length} TRACKS</span>
       </div>
     </div>

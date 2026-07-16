@@ -189,6 +189,23 @@ export function AudioProvider({ children }) {
     }
   }, [byScreen])
 
+  // Debug auto-focus (?focus): open the first streamable project's terminal
+  // hands-off, for screenshotting the terminal UI in the iOS Simulator harness.
+  // No-op unless the flag is present.
+  const autoFocused = useRef(false)
+  useEffect(() => {
+    if (autoFocused.current) return
+    const dbg = typeof window !== 'undefined' &&
+      (/(^|[?&])focus\b/.test(window.location.search) ||
+        /(^|[#&])focus\b/.test(window.location.hash))
+    if (!dbg) return
+    const firstScreen = Object.keys(byScreen).find((sc) => byScreen[sc].tracks.some((t) => t.streamId))
+    if (firstScreen) {
+      autoFocused.current = true
+      setFocused(firstScreen)
+    }
+  }, [byScreen])
+
   const next = useCallback(() => {
     setActive((a) => {
       if (!a) return a

@@ -1,6 +1,7 @@
 import { createContext, useContext, useMemo, useState, useRef, useCallback, useEffect } from 'react'
 import { AudioEngine } from './AudioEngine'
 import { loadAssignments, streamUrlFor } from './catalog'
+import { getSavedIndex, saveProject, deleteProject, offlineSupported } from './offlineStore'
 import { shades, RED } from '../palette'
 
 const Ctx = createContext(null)
@@ -79,6 +80,12 @@ export function AudioProvider({ children }) {
   byScreenRef.current = byScreen
   const qualityRef = useRef(quality)
   qualityRef.current = quality
+
+  // ---- offline saves ----
+  // Which projects are downloaded for offline playback (localStorage-backed),
+  // plus in-flight progress for the one currently saving.
+  const [savedOffline, setSavedOffline] = useState(() => getSavedIndex())
+  const [saveProgress, setSaveProgress] = useState(null) // { screen, done, total } | null
 
   // ---- gyroscope look-around (phones) ----
   const [gyro, setGyro] = useState(false)
@@ -163,6 +170,25 @@ export function AudioProvider({ children }) {
     }
   }, [byScreen, playTrack])
 
+  // Debug auto-save (?autosave): once the catalog is loaded, download the first
+  // streamable project offline hands-off, for the iOS Simulator offline harness
+  // (tools/sim-offline-test.sh). No-op unless the flag is present. Defined after
+  // saveOffline below via a ref so ordering doesn't matter.
+  const autoSaved = useRef(false)
+  const saveOfflineRef = useRef(null)
+  useEffect(() => {
+    if (autoSaved.current) return
+    const dbg = typeof window !== 'undefined' &&
+      (/(^|[?&])autosave\b/.test(window.location.search) ||
+        /(^|[#&])autosave\b/.test(window.location.hash))
+    if (!dbg) return
+    const firstScreen = Object.keys(byScreen).find((sc) => byScreen[sc].tracks.some((t) => t.streamId))
+    if (firstScreen && saveOfflineRef.current) {
+      autoSaved.current = true
+      saveOfflineRef.current(firstScreen)
+    }
+  }, [byScreen])
+
   const next = useCallback(() => {
     setActive((a) => {
       if (!a) return a
@@ -224,6 +250,45 @@ export function AudioProvider({ children }) {
     setPlaying(false)
     setNow({ time: 0, duration: 0 })
   }, [engine])
+
+  // Debug quality override (?lossy / ?lossless): deep-link the stream quality so
+  // the offline harness can save the small (mp3) variant without tapping the
+  // gear in the simulator. Runs before ?autosave fires (setQuality updates
+  // qualityRef synchronously). No-op unless the flag is present.
+  const qualityForced = useRef(false)
+  useEffect(() => {
+    if (qualityForced.current || typeof window === 'undefined') return
+    const m = /(^|[?&])(lossy|lossless)\b/.exec(window.location.search)
+    if (m) { qualityForced.current = true; setQuality(m[2]) }
+  }, [setQuality])
+
+  // Download the focused project for offline playback at the CURRENT quality.
+  // Progress drives the terminal button; the service worker serves the saved
+  // bytes back on playback (no change to playTrack's URLs). No-op mid-save or
+  // where the Cache API is unavailable.
+  const saveOffline = useCallback(async (screen) => {
+    if (!offlineSupported() || saveProgress) return
+    const proj = byScreenRef.current[screen]
+    if (!proj || !proj.tracks.some((t) => t.streamId)) return
+    setSaveProgress({ screen, done: 0, total: proj.tracks.length })
+    try {
+      await saveProject(proj, qualityRef.current, ({ done, total }) =>
+        setSaveProgress({ screen, done, total })
+      )
+      setSavedOffline(getSavedIndex())
+    } catch (e) {
+      console.error('offline save failed', e)
+    } finally {
+      setSaveProgress(null)
+    }
+  }, [saveProgress])
+
+  saveOfflineRef.current = saveOffline
+
+  const removeOffline = useCallback(async (screen) => {
+    await deleteProject(screen)
+    setSavedOffline(getSavedIndex())
+  }, [])
 
   const focus = useCallback((screen) => setFocused(screen), [])
   const back = useCallback(() => setFocused(null), [])
@@ -371,11 +436,13 @@ export function AudioProvider({ children }) {
       playTrack, togglePlay, next, prev, seekFrac, stop,
       gyro, gyroSupported, toggleGyro,
       quality, setQuality,
+      savedOffline, saveProgress, saveOffline, removeOffline,
     }),
     [engine, source, entered, enter, byScreen, focused, focus, back, focusedProject,
      active, activeProject, activeTrack, playing, now, accent,
      playTrack, togglePlay, next, prev, seekFrac, stop,
-     gyro, gyroSupported, toggleGyro, quality, setQuality]
+     gyro, gyroSupported, toggleGyro, quality, setQuality,
+     savedOffline, saveProgress, saveOffline, removeOffline]
   )
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

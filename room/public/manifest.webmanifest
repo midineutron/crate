@@ -1,0 +1,16 @@
+{
+  "name": "CRATE",
+  "short_name": "CRATE",
+  "description": "An audio-reactive room streaming the crate catalog.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0607",
+  "theme_color": "#0a0607",
+  "icons": [
+    { "src": "/icon-192.png", "type": "image/png", "sizes": "192x192" },
+    { "src": "/icon-512.png", "type": "image/png", "sizes": "512x512" },
+    { "src": "/icon-512.png", "type": "image/png", "sizes": "512x512", "purpose": "maskable" }
+  ]
+}

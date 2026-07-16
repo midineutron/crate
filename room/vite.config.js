@@ -20,4 +20,9 @@ export default defineConfig({
   base: '/',
   plugins: [react()],
   server: { host: true, port: 5173, proxy },
+  // `vite preview` serves the production build (real service worker + hashed
+  // assets) with the same backend proxy — used by tools/sim-offline-test.sh to
+  // exercise offline saves/playback on iOS the way prod behaves. preview.proxy
+  // is separate from server.proxy, so it must be set explicitly.
+  preview: { host: true, port: 4173, proxy },
 })

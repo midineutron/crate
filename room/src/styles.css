@@ -84,13 +84,24 @@ canvas { display: block; }
 .term-row.active .tr-mark { color: var(--accent); }
 .tr-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tr-dur { flex-shrink: 0; color: var(--accent-dim); font-size: 12px; }
-.term-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(var(--accent-rgb),0.4); }
+.term-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(var(--accent-rgb),0.4); }
 .term-back {
   background: transparent; border: 1px solid var(--accent); color: var(--accent);
   padding: 8px 20px; font: inherit; font-size: 12px; letter-spacing: 0.3em; cursor: pointer; transition: all 0.15s;
 }
 .term-back:hover { background: var(--accent); color: #0a0607; box-shadow: 0 0 22px rgba(var(--accent-rgb),0.55); }
-.term-count { color: var(--accent-dim); font-size: 11px; letter-spacing: 0.25em; }
+.term-count { color: var(--accent-dim); font-size: 11px; letter-spacing: 0.25em; white-space: nowrap; }
+/* ---- save-offline button (mirrors .term-back, slightly quieter) ---- */
+.term-save {
+  background: transparent; border: 1px solid rgba(var(--accent-rgb),0.55); color: var(--accent);
+  padding: 8px 16px; font: inherit; font-size: 11px; letter-spacing: 0.25em; white-space: nowrap;
+  cursor: pointer; transition: all 0.15s;
+}
+.term-save:hover:not([disabled]) { border-color: var(--accent); background: var(--accent); color: #0a0607; box-shadow: 0 0 18px rgba(var(--accent-rgb),0.5); }
+.term-save.saved { background: var(--accent); color: #0a0607; border-color: var(--accent); }
+.term-save.saved:hover { background: transparent; color: var(--accent); box-shadow: none; }
+.term-save.partial { border-style: dashed; color: var(--accent); }
+.term-save[disabled] { opacity: 0.6; cursor: default; border-style: dashed; }
 
 /* ---- transport bar ---- */
 .transport {

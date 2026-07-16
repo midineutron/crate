@@ -207,6 +207,30 @@ function demoCatalog() {
   return assign(projects)
 }
 
+// Persist the last successful catalog so the room can rebuild the real project
+// structure with no network — essential for offline playback: a saved project's
+// cached audio is keyed by track id, so the byScreen map that maps screens ->
+// tracks must survive offline, independent of whether the SW happened to cache
+// the Subsonic JSON in time. Without this, an offline load falls to the demo
+// catalog and the saved bytes become unreachable.
+const SNAPSHOT_KEY = 'crate-catalog-snapshot'
+
+function saveSnapshot(byScreen) {
+  try { localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(byScreen)) } catch (e) {}
+}
+
+function loadSnapshot() {
+  try {
+    const raw = localStorage.getItem(SNAPSHOT_KEY)
+    if (!raw) return null
+    const byScreen = JSON.parse(raw)
+    const list = Object.values(byScreen)
+    return list.length ? { byScreen, list } : null
+  } catch (e) {
+    return null
+  }
+}
+
 export async function loadAssignments() {
   try {
     const albums = await fetchAlbums()
@@ -215,8 +239,16 @@ export async function loadAssignments() {
     const { byScreen, list } = assign(projects)
     if (list.length === 0) throw new Error('no projects')
     const count = list.reduce((n, e) => n + e.tracks.length, 0)
+    saveSnapshot(byScreen)
     return { byScreen, list, source: 'catalog', count }
   } catch (e) {
+    // Offline (or backend down): reuse the last real catalog if we have one, so
+    // saved projects stay playable. Only fall to the demo when there's none.
+    const snap = loadSnapshot()
+    if (snap) {
+      const count = snap.list.reduce((n, e) => n + e.tracks.length, 0)
+      return { byScreen: snap.byScreen, list: snap.list, source: 'catalog', count, offline: true }
+    }
     const { byScreen, list } = demoCatalog()
     return { byScreen, list, source: 'demo', count: 0, error: String(e) }
   }

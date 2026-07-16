@@ -1,7 +1,16 @@
 import { useState } from 'react'
 import { useAudio } from '../audio/audioContext'
+import { offlineSupported } from '../audio/offlineStore'
 import { shades, RED } from '../palette'
 import { DebugHud } from './DebugHud'
+
+// Human-readable byte size for the SAVED readout.
+function fmtBytes(n) {
+  if (!n) return ''
+  if (n >= 1e9) return (n / 1e9).toFixed(1) + 'GB'
+  if (n >= 1e6) return Math.round(n / 1e6) + 'MB'
+  return Math.max(1, Math.round(n / 1e3)) + 'KB'
+}
 
 function fmt(sec) {
   if (!sec || !isFinite(sec)) return '0:00'
@@ -12,13 +21,21 @@ function fmt(sec) {
 
 // The terminal that appears over the focused CRT: project header + track list.
 function Terminal() {
-  const { focusedProject, focused, active, playing, playTrack, back } = useAudio()
+  const {
+    focusedProject, focused, active, playing, playTrack, back,
+    savedOffline, saveProgress, saveOffline, removeOffline,
+  } = useAudio()
   if (!focusedProject) return null
   const proj = focusedProject
   // Scope the terminal to the focused TV's own colour, independent of the room
   // accent (which tracks whatever is currently playing).
   const p = shades(proj.color || RED)
   const style = { '--accent': p.main, '--accent-mid': p.mid, '--accent-dim': p.dim, '--accent-rgb': p.rgb }
+  // Offline-save state for this screen: only streamable (non-demo) projects, and
+  // only where the Cache API exists.
+  const savedEntry = savedOffline && savedOffline[proj.screen]
+  const canSave = offlineSupported() && proj.tracks.some((t) => t.streamId)
+  const prog = saveProgress && saveProgress.screen === proj.screen ? saveProgress : null
   return (
     <div className={'terminal' + (active ? ' with-transport' : '')} style={style}>
       <div className="term-scan" />
@@ -45,6 +62,29 @@ function Terminal() {
       </div>
       <div className="term-foot">
         <button className="term-back" onClick={back}>◀ BACK</button>
+        {canSave && (
+          prog ? (
+            <button className="term-save" disabled>SAVING {prog.done}/{prog.total}</button>
+          ) : savedEntry && savedEntry.partial ? (
+            <button
+              className="term-save partial"
+              onClick={() => saveOffline(proj.screen)}
+              title={'Partly saved (' + savedEntry.trackCount + '/' + savedEntry.expected + ') · tap to finish'}
+            >↻ {savedEntry.trackCount}/{savedEntry.expected}</button>
+          ) : savedEntry ? (
+            <button
+              className="term-save saved"
+              onClick={() => removeOffline(proj.screen)}
+              title={'Saved offline' + (savedEntry.bytes ? ' · ' + fmtBytes(savedEntry.bytes) : '') + ' · tap to remove'}
+            >◆ OFFLINE</button>
+          ) : (
+            <button
+              className="term-save"
+              onClick={() => saveOffline(proj.screen)}
+              title="Download this project for offline playback"
+            >↓ SAVE OFFLINE</button>
+          )
+        )}
         <span className="term-count">{proj.tracks.length} TRACKS</span>
       </div>
     </div>

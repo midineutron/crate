@@ -11,7 +11,7 @@ import { useAudio } from '../audio/audioContext'
 // background playback. If you ever see `decode` in catalog mode, the sidecar
 // wiring is broken again.
 export function DebugHud() {
-  const { engine, source, quality } = useAudio()
+  const { engine, source, quality, savedOffline, saveProgress, activeProject } = useAudio()
   // Enable via `?debug` query or `debug` in the hash. Kept separate from the
   // `#enter` hash (which must stay an exact match to auto-enter) so the two can
   // coexist, e.g. `/?debug#enter`.
@@ -38,6 +38,16 @@ export function DebugHud() {
         : s.frameSource === 'pending' ? '#ffd23f'
           : '#8a8a8a'
 
+  // Offline / service-worker state (for tools/sim-offline-test.sh).
+  const swCtl = typeof navigator !== 'undefined' && 'serviceWorker' in navigator
+    ? (navigator.serviceWorker.controller ? 'controlling' : 'none')
+    : 'unsupported'
+  const savedCount = savedOffline ? Object.keys(savedOffline).length : 0
+  const activeSaved = activeProject && savedOffline && savedOffline[activeProject.screen]
+  const offlineVal = saveProgress
+    ? 'saving ' + saveProgress.done + '/' + saveProgress.total
+    : savedCount + ' saved' + (activeSaved ? ' · active✓' + (activeSaved.partial ? ' (partial)' : '') : '')
+
   const rows = [
     ['SOURCE', source + ' · ' + quality],
     ['STREAM', String(s.isStream)],
@@ -45,6 +55,8 @@ export function DebugHud() {
     ['AUDIOEL', (s.elPaused ? 'paused' : 'playing') + (s.elEnded ? ' ENDED' : '')],
     ['TIME', fmt(s.elTime) + ' / ' + (isFinite(s.elDur) && s.elDur ? fmt(s.elDur) : 'known ' + fmt(s.knownDuration))],
     ['CTX', s.ctxState + (s.hidden ? ' · HIDDEN' : '')],
+    ['SW', swCtl],
+    ['OFFLINE', offlineVal],
   ]
 
   return (
